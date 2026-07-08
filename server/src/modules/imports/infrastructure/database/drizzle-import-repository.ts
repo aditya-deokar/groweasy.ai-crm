@@ -2,6 +2,9 @@ import { and, asc, count, desc, eq, gt, inArray, lte, gte, sql } from 'drizzle-o
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Database } from '../../../../db/index.js';
 import {
+  aiGuardrailEvents,
+  aiModelRuns,
+  aiPromptVersions,
   crmImportRecords,
   crmSkippedRecords,
   importBatches,
@@ -21,12 +24,16 @@ import type {
   ImportResult,
   ImportResultBatchSummary,
   ImportStatusResult,
+  RecordAiGuardrailEventsInput,
+  RecordAiModelRunInput,
   PersistBatchResultInput,
   PersistBatchResultSummary,
   PersistedImportRow,
 } from '../../domain/ports/import-repository.port.js';
 import type { CrmRecord } from '../../domain/entities/crm-record.js';
 import { planImportBatches } from '../../domain/services/import-batch-planner.js';
+import { sanitizeMetadata } from '../../../../shared/infrastructure/ai-safety-redaction.js';
+import type { AiSafetySummary } from '../../../../shared/infrastructure/ai-safety-types.js';
 
 const INSERT_CHUNK_SIZE = 500;
 const ERROR_MESSAGE_MAX_LENGTH = 500;
@@ -37,6 +44,12 @@ interface BatchStatusCounts {
   COMPLETED: number;
   FAILED: number;
   CANCELLED: number;
+}
+
+interface BatchSafetyCounts {
+  safetyEventCount: number;
+  blockedRows: number;
+  warnedRows: number;
 }
 
 export class DrizzleImportRepository implements ImportRepository {
@@ -237,18 +250,21 @@ export class DrizzleImportRepository implements ImportRepository {
       input.batchSize
     );
     const batchValues = plannedBatches.map((batch) => ({
-        importJobId: input.importId,
-        batchIndex: batch.batchIndex,
-        rowStartIndex: batch.rowStartIndex,
-        rowEndIndex: batch.rowEndIndex,
-        rowCount: batch.rowCount,
-      }));
+      importJobId: input.importId,
+      batchIndex: batch.batchIndex,
+      rowStartIndex: batch.rowStartIndex,
+      rowEndIndex: batch.rowEndIndex,
+      rowCount: batch.rowCount,
+    }));
 
     if (batchValues.length === 0) {
       return [];
     }
 
-    const createdBatches = await this.database.insert(importBatches).values(batchValues).returning();
+    const createdBatches = await this.database
+      .insert(importBatches)
+      .values(batchValues)
+      .returning();
     await this.recordEvent({
       importId: input.importId,
       eventType: 'IMPORT_BATCHES_CREATED',
@@ -298,13 +314,15 @@ export class DrizzleImportRepository implements ImportRepository {
 
     const skippedRowIndexes = await this.getSkippedRowIndexes(importId);
 
-    return rows.filter((row) => !skippedRowIndexes.has(row.rowIndex)).map((row) => ({
-      id: row.id,
-      rowIndex: row.rowIndex,
-      rawData: row.rawData,
-      rawTextHash: row.rawTextHash,
-      parseWarnings: row.parseWarnings ?? undefined,
-    }));
+    return rows
+      .filter((row) => !skippedRowIndexes.has(row.rowIndex))
+      .map((row) => ({
+        id: row.id,
+        rowIndex: row.rowIndex,
+        rawData: row.rawData,
+        rawTextHash: row.rawTextHash,
+        parseWarnings: row.parseWarnings ?? undefined,
+      }));
   }
 
   public async markBatchProcessing(batchId: string): Promise<void> {
@@ -478,6 +496,80 @@ export class DrizzleImportRepository implements ImportRepository {
     });
   }
 
+  public async recordAiModelRun(input: RecordAiModelRunInput): Promise<void> {
+    await this.database
+      .insert(aiPromptVersions)
+      .values({
+        promptId: input.metadata.promptId,
+        version: input.metadata.promptVersion,
+        feature: input.metadata.feature,
+        sha256: input.metadata.promptSha256,
+        active: true,
+        metadata: {
+          provider: input.metadata.provider,
+          model: input.metadata.model,
+        },
+      })
+      .onConflictDoNothing();
+
+    await this.database.insert(aiModelRuns).values({
+      importJobId: input.importId,
+      importBatchId: input.batchId,
+      feature: input.metadata.feature,
+      provider: input.metadata.provider,
+      modelName: input.metadata.model,
+      promptId: input.metadata.promptId,
+      promptVersion: input.metadata.promptVersion,
+      promptSha256: input.metadata.promptSha256,
+      inputHash: input.metadata.inputHash,
+      outputHash: input.metadata.outputHash,
+      inputTokens: input.metadata.inputTokens,
+      outputTokens: input.metadata.outputTokens,
+      latencyMs: input.metadata.latencyMs,
+      outcome: input.metadata.outcome,
+      errorCode: input.metadata.errorCode,
+      guardrailSummary: sanitizeMetadata(input.metadata.guardrailSummary ?? {}) as Record<
+        string,
+        unknown
+      >,
+    });
+
+    if (input.batchId) {
+      await this.database
+        .update(importBatches)
+        .set({
+          modelName: input.metadata.model,
+          inputTokens: input.metadata.inputTokens,
+          outputTokens: input.metadata.outputTokens,
+          updatedAt: new Date(),
+        })
+        .where(eq(importBatches.id, input.batchId));
+    }
+  }
+
+  public async recordAiGuardrailEvents(input: RecordAiGuardrailEventsInput): Promise<void> {
+    if (input.findings.length === 0) {
+      return;
+    }
+
+    await this.database.insert(aiGuardrailEvents).values(
+      input.findings.map((finding) => ({
+        importJobId: input.importId,
+        importBatchId: input.batchId,
+        rowIndex: finding.rowIndex,
+        stage: finding.stage,
+        ruleId: finding.ruleId,
+        severity: finding.severity,
+        decision: finding.decision,
+        message: finding.message,
+        metadata: sanitizeMetadata({
+          fieldName: finding.fieldName,
+          ...(finding.metadata ?? {}),
+        }) as Record<string, unknown>,
+      }))
+    );
+  }
+
   public async completeJobIfFinished(importId: string): Promise<void> {
     const job = await this.getJobSummary(importId);
     if (!job) return;
@@ -540,7 +632,9 @@ export class DrizzleImportRepository implements ImportRepository {
     return new Set(skippedRows.map((row) => row.rowIndex));
   }
 
-  private async getImportBatches(importId: string): Promise<Array<typeof importBatches.$inferSelect>> {
+  private async getImportBatches(
+    importId: string
+  ): Promise<Array<typeof importBatches.$inferSelect>> {
     return this.database
       .select()
       .from(importBatches)
@@ -681,6 +775,7 @@ export class DrizzleImportRepository implements ImportRepository {
         skipped: job.skippedCount,
       },
       error: job.errorMessage,
+      aiSafety: await this.getAiSafetySummary(importId),
       recentEvents: await this.getRecentEvents(importId, 10, true),
     };
   }
@@ -703,7 +798,7 @@ export class DrizzleImportRepository implements ImportRepository {
 
     const hasMore = records.length > input.limit;
     const pageRecords = hasMore ? records.slice(0, input.limit) : records;
-    const nextCursor = hasMore ? pageRecords.at(-1)?.rowIndex ?? null : null;
+    const nextCursor = hasMore ? (pageRecords.at(-1)?.rowIndex ?? null) : null;
 
     const skippedRecords = input.includeSkipped
       ? await this.database
@@ -713,6 +808,7 @@ export class DrizzleImportRepository implements ImportRepository {
           .orderBy(asc(crmSkippedRecords.rowIndex))
       : [];
     const batches = await this.getImportBatches(input.importId);
+    const batchSafetyCounts = await this.getBatchSafetyCounts(input.importId);
     const batchCounts = countBatchesByStatus(batches);
     const skippedReasonCounts = await this.getSkippedReasonCounts(input.importId);
     const processedRows = job.processedRows;
@@ -733,7 +829,10 @@ export class DrizzleImportRepository implements ImportRepository {
         processedRows,
         unprocessedRows,
       },
-      batches: batches.map(mapBatchResultSummary),
+      batches: batches.map((batch) =>
+        mapBatchResultSummary(batch, batchSafetyCounts.get(batch.id) ?? emptyBatchSafetyCounts())
+      ),
+      aiSafety: await this.getAiSafetySummary(input.importId),
       skippedReasonCounts,
       events: await this.getRecentEvents(input.importId, 25, true),
       records: pageRecords.map((record) => ({
@@ -752,13 +851,83 @@ export class DrizzleImportRepository implements ImportRepository {
     };
   }
 
-  public async updateImportedRecord(importId: string, rowIndex: number, record: Partial<CrmRecord>): Promise<void> {
+  private async getAiSafetySummary(importId: string): Promise<AiSafetySummary> {
+    const [latestRun] = await this.database
+      .select()
+      .from(aiModelRuns)
+      .where(eq(aiModelRuns.importJobId, importId))
+      .orderBy(desc(aiModelRuns.createdAt))
+      .limit(1);
+    const events = await this.database
+      .select()
+      .from(aiGuardrailEvents)
+      .where(eq(aiGuardrailEvents.importJobId, importId));
+
+    const blockedRows = distinctRowCount(events, 'BLOCK');
+    const warnedRows = distinctRowCount(events, 'WARN');
+    const outputRejectedBatches = new Set(
+      events
+        .filter((event) => event.stage === 'OUTPUT' && event.decision === 'BLOCK')
+        .map((event) => event.importBatchId ?? event.id)
+    ).size;
+
+    return {
+      promptVersion: latestRun?.promptVersion ?? null,
+      provider: isAiProvider(latestRun?.provider) ? latestRun.provider : null,
+      model: latestRun?.modelName ?? null,
+      blockedRows,
+      warnedRows,
+      outputRejectedBatches,
+      safetyEvents: events.length,
+    };
+  }
+
+  private async getBatchSafetyCounts(importId: string): Promise<Map<string, BatchSafetyCounts>> {
+    const events = await this.database
+      .select()
+      .from(aiGuardrailEvents)
+      .where(eq(aiGuardrailEvents.importJobId, importId));
+    const counts = new Map<string, BatchSafetyCounts>();
+    const blockedRowsByBatch = new Map<string, Set<number | string>>();
+    const warnedRowsByBatch = new Map<string, Set<number | string>>();
+
+    for (const event of events) {
+      if (!event.importBatchId) continue;
+
+      const currentCounts = counts.get(event.importBatchId) ?? emptyBatchSafetyCounts();
+      currentCounts.safetyEventCount += 1;
+
+      if (event.decision === 'BLOCK') {
+        getOrCreateSet(blockedRowsByBatch, event.importBatchId).add(event.rowIndex ?? event.id);
+      }
+
+      if (event.decision === 'WARN') {
+        getOrCreateSet(warnedRowsByBatch, event.importBatchId).add(event.rowIndex ?? event.id);
+      }
+
+      counts.set(event.importBatchId, currentCounts);
+    }
+
+    for (const [batchId, safetyCounts] of counts) {
+      safetyCounts.blockedRows = blockedRowsByBatch.get(batchId)?.size ?? 0;
+      safetyCounts.warnedRows = warnedRowsByBatch.get(batchId)?.size ?? 0;
+    }
+
+    return counts;
+  }
+
+  public async updateImportedRecord(
+    importId: string,
+    rowIndex: number,
+    record: Partial<CrmRecord>
+  ): Promise<void> {
     const updateData: Record<string, any> = {};
     if (record.created_at !== undefined) updateData.createdAtValue = record.created_at;
     if (record.name !== undefined) updateData.name = record.name;
     if (record.email !== undefined) updateData.email = record.email;
     if (record.country_code !== undefined) updateData.countryCode = record.country_code;
-    if (record.mobile_without_country_code !== undefined) updateData.mobileWithoutCountryCode = record.mobile_without_country_code;
+    if (record.mobile_without_country_code !== undefined)
+      updateData.mobileWithoutCountryCode = record.mobile_without_country_code;
     if (record.company !== undefined) updateData.company = record.company;
     if (record.city !== undefined) updateData.city = record.city;
     if (record.state !== undefined) updateData.state = record.state;
@@ -776,22 +945,24 @@ export class DrizzleImportRepository implements ImportRepository {
       .update(crmImportRecords)
       .set(updateData)
       .where(
-        and(
-          eq(crmImportRecords.importJobId, importId),
-          eq(crmImportRecords.rowIndex, rowIndex)
-        )
+        and(eq(crmImportRecords.importJobId, importId), eq(crmImportRecords.rowIndex, rowIndex))
       );
   }
 
-  public async getSkippedRecord(importId: string, rowIndex: number): Promise<{ rowIndex: number; reason: string; rawData: Record<string, string>; importRowId: string } | null> {
+  public async getSkippedRecord(
+    importId: string,
+    rowIndex: number
+  ): Promise<{
+    rowIndex: number;
+    reason: string;
+    rawData: Record<string, string>;
+    importRowId: string;
+  } | null> {
     const [record] = await this.database
       .select()
       .from(crmSkippedRecords)
       .where(
-        and(
-          eq(crmSkippedRecords.importJobId, importId),
-          eq(crmSkippedRecords.rowIndex, rowIndex)
-        )
+        and(eq(crmSkippedRecords.importJobId, importId), eq(crmSkippedRecords.rowIndex, rowIndex))
       )
       .limit(1);
 
@@ -805,7 +976,12 @@ export class DrizzleImportRepository implements ImportRepository {
     };
   }
 
-  public async reimportSkippedRecord(importId: string, importRowId: string, rowIndex: number, record: CrmRecord): Promise<void> {
+  public async reimportSkippedRecord(
+    importId: string,
+    importRowId: string,
+    rowIndex: number,
+    record: CrmRecord
+  ): Promise<void> {
     await this.database.transaction(async (tx) => {
       // 1. Insert into crmImportRecords
       await tx.insert(crmImportRecords).values({
@@ -819,10 +995,7 @@ export class DrizzleImportRepository implements ImportRepository {
       await tx
         .delete(crmSkippedRecords)
         .where(
-          and(
-            eq(crmSkippedRecords.importJobId, importId),
-            eq(crmSkippedRecords.rowIndex, rowIndex)
-          )
+          and(eq(crmSkippedRecords.importJobId, importId), eq(crmSkippedRecords.rowIndex, rowIndex))
         );
 
       // 3. Update importJobs counts
@@ -837,7 +1010,10 @@ export class DrizzleImportRepository implements ImportRepository {
     });
   }
 
-  public async getHistory(limit: number, cursor?: number): Promise<{ jobs: ImportJobSummary[]; nextCursor: number | null; hasMore: boolean }> {
+  public async getHistory(
+    limit: number,
+    cursor?: number
+  ): Promise<{ jobs: ImportJobSummary[]; nextCursor: number | null; hasMore: boolean }> {
     const offset = cursor ?? 0;
     const items = await this.database
       .select()
@@ -884,10 +1060,16 @@ function mapBatchSummary(batch: typeof importBatches.$inferSelect): ImportBatchS
   };
 }
 
-function mapBatchResultSummary(batch: typeof importBatches.$inferSelect): ImportResultBatchSummary {
+function mapBatchResultSummary(
+  batch: typeof importBatches.$inferSelect,
+  safetyCounts: BatchSafetyCounts
+): ImportResultBatchSummary {
   return {
     ...mapBatchSummary(batch),
     errorMessage: batch.errorMessage,
+    safetyEventCount: safetyCounts.safetyEventCount,
+    blockedRows: safetyCounts.blockedRows,
+    warnedRows: safetyCounts.warnedRows,
   };
 }
 
@@ -901,7 +1083,9 @@ function mapImportEventSummary(event: typeof importEvents.$inferSelect): ImportE
   };
 }
 
-function countBatchesByStatus(batches: Array<typeof importBatches.$inferSelect>): BatchStatusCounts {
+function countBatchesByStatus(
+  batches: Array<typeof importBatches.$inferSelect>
+): BatchStatusCounts {
   const counts: BatchStatusCounts = {
     PENDING: 0,
     PROCESSING: 0,
@@ -921,6 +1105,38 @@ function truncateErrorMessage(errorMessage: string): string {
   return errorMessage.length > ERROR_MESSAGE_MAX_LENGTH
     ? `${errorMessage.slice(0, ERROR_MESSAGE_MAX_LENGTH)}...`
     : errorMessage;
+}
+
+function emptyBatchSafetyCounts(): BatchSafetyCounts {
+  return {
+    safetyEventCount: 0,
+    blockedRows: 0,
+    warnedRows: 0,
+  };
+}
+
+function distinctRowCount(
+  events: Array<typeof aiGuardrailEvents.$inferSelect>,
+  decision: 'BLOCK' | 'WARN'
+): number {
+  return new Set(
+    events
+      .filter((event) => event.stage === 'INPUT' && event.decision === decision)
+      .map((event) => event.rowIndex ?? event.id)
+  ).size;
+}
+
+function isAiProvider(value: unknown): value is 'gemini' | 'openai' {
+  return value === 'gemini' || value === 'openai';
+}
+
+function getOrCreateSet<K, V>(map: Map<K, Set<V>>, key: K): Set<V> {
+  const existing = map.get(key);
+  if (existing) return existing;
+
+  const created = new Set<V>();
+  map.set(key, created);
+  return created;
 }
 
 function mapCrmRecordToDb(record: CrmRecord) {

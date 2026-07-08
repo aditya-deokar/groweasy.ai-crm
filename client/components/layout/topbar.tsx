@@ -1,7 +1,7 @@
 import { Search, RefreshCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/import/theme-toggle";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 interface TopbarProps {
   title: string;

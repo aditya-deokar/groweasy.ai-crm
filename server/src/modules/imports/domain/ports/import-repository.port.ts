@@ -2,6 +2,11 @@ import type { ImportFileMetadata, ImportPreview } from '../entities/import-job.j
 import type { ImportRow, ImportRowSkipReason } from '../entities/import-row.js';
 import type { CrmRecord, CrmRecordWithRow } from '../entities/crm-record.js';
 import type { ImportBatchStatus, ImportStatus } from '../constants/import-status.js';
+import type {
+  AiGuardrailFinding,
+  AiModelCallMetadata,
+  AiSafetySummary,
+} from '../../../../shared/infrastructure/ai-safety-types.js';
 
 export interface CreateImportPreviewInput {
   file: ImportFileMetadata;
@@ -29,20 +34,46 @@ export interface ImportRepository {
   markProcessing(importId: string, totalBatches: number): Promise<void>;
   createBatches(input: CreateImportBatchesInput): Promise<ImportBatchSummary[]>;
   getProcessableBatches(importId: string, includeFailed: boolean): Promise<ImportBatchSummary[]>;
-  getRowsForBatch(importId: string, rowStartIndex: number, rowEndIndex: number): Promise<PersistedImportRow[]>;
+  getRowsForBatch(
+    importId: string,
+    rowStartIndex: number,
+    rowEndIndex: number
+  ): Promise<PersistedImportRow[]>;
   markBatchProcessing(batchId: string): Promise<void>;
   markBatchCompleted(batchId: string): Promise<void>;
   markBatchFailed(batchId: string, errorMessage: string): Promise<void>;
   persistBatchResult(input: PersistBatchResultInput): Promise<PersistBatchResultSummary>;
+  recordAiModelRun(input: RecordAiModelRunInput): Promise<void>;
+  recordAiGuardrailEvents(input: RecordAiGuardrailEventsInput): Promise<void>;
   completeJobIfFinished(importId: string): Promise<void>;
   failJob(importId: string, errorMessage: string): Promise<void>;
   cancelJob(importId: string): Promise<void>;
   getStatus(importId: string): Promise<ImportStatusResult | null>;
   getResult(input: GetImportResultInput): Promise<ImportResult | null>;
-  updateImportedRecord(importId: string, rowIndex: number, record: Partial<CrmRecord>): Promise<void>;
-  getSkippedRecord(importId: string, rowIndex: number): Promise<{ rowIndex: number; reason: string; rawData: Record<string, string>; importRowId: string } | null>;
-  reimportSkippedRecord(importId: string, importRowId: string, rowIndex: number, record: CrmRecord): Promise<void>;
-  getHistory(limit: number, cursor?: number): Promise<{ jobs: ImportJobSummary[]; nextCursor: number | null; hasMore: boolean }>;
+  updateImportedRecord(
+    importId: string,
+    rowIndex: number,
+    record: Partial<CrmRecord>
+  ): Promise<void>;
+  getSkippedRecord(
+    importId: string,
+    rowIndex: number
+  ): Promise<{
+    rowIndex: number;
+    reason: string;
+    rawData: Record<string, string>;
+    importRowId: string;
+  } | null>;
+  reimportSkippedRecord(
+    importId: string,
+    importRowId: string,
+    rowIndex: number,
+    record: CrmRecord
+  ): Promise<void>;
+  getHistory(
+    limit: number,
+    cursor?: number
+  ): Promise<{ jobs: ImportJobSummary[]; nextCursor: number | null; hasMore: boolean }>;
 }
 
 export interface ImportJobSummary {
@@ -70,6 +101,9 @@ export interface ImportBatchSummary {
 
 export interface ImportResultBatchSummary extends ImportBatchSummary {
   errorMessage: string | null;
+  safetyEventCount: number;
+  blockedRows: number;
+  warnedRows: number;
 }
 
 export interface ImportEventSummary {
@@ -105,6 +139,18 @@ export interface PersistBatchResultSummary {
   skippedCount: number;
 }
 
+export interface RecordAiModelRunInput {
+  importId: string;
+  batchId?: string;
+  metadata: AiModelCallMetadata;
+}
+
+export interface RecordAiGuardrailEventsInput {
+  importId: string;
+  batchId?: string;
+  findings: AiGuardrailFinding[];
+}
+
 export interface ImportStatusResult {
   importId: string;
   status: ImportStatus;
@@ -121,6 +167,7 @@ export interface ImportStatusResult {
     skipped: number;
   };
   error: string | null;
+  aiSafety: AiSafetySummary;
   recentEvents?: ImportEventSummary[];
 }
 
@@ -147,6 +194,7 @@ export interface ImportResult {
     unprocessedRows: number;
   };
   batches: ImportResultBatchSummary[];
+  aiSafety: AiSafetySummary;
   skippedReasonCounts: Record<string, number>;
   events: ImportEventSummary[];
   records: Array<CrmRecordWithRow>;

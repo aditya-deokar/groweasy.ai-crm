@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Rocket,
@@ -20,13 +23,13 @@ import { cn } from "@/lib/utils";
 const mainNavItems = [
   { title: "Dashboard", href: "#", icon: LayoutDashboard },
   { title: "Generate Leads", href: "#", icon: Rocket },
-  { title: "Manage Leads", href: "#", icon: Database },
+  { title: "Manage Leads", href: "/leads", icon: Database },
   { title: "Engage Leads", href: "#", icon: MessageSquare },
 ];
 
 const controlCenterItems = [
   { title: "Team Members", href: "#", icon: Users },
-  { title: "Lead Sources", href: "/import", icon: Megaphone, isActive: true },
+  { title: "Lead Sources", href: "/import", icon: Megaphone },
   { title: "Import History", href: "/import/history", icon: History },
   { title: "Ad Accounts", href: "#", icon: UserPlus },
   { title: "WhatsApp Account", href: "#", icon: MessageCircle },
@@ -36,6 +39,14 @@ const controlCenterItems = [
 ];
 
 export function Sidebar() {
+  const pathname = usePathname();
+
+  const isActive = (href: string) => {
+    if (href === "#") return false;
+    if (href === "/import" && pathname.startsWith("/import/history")) return false;
+    return pathname === href || pathname.startsWith(href);
+  };
+
   return (
     <aside className="w-64 border-r bg-muted/30 flex flex-col h-screen shrink-0 overflow-y-auto">
       <div className="p-4 pl-6 pt-6 flex items-center space-x-2">
@@ -77,39 +88,52 @@ export function Sidebar() {
         <div className="px-4">
           <h4 className="text-xs font-bold text-muted-foreground mb-2 px-2 uppercase tracking-wider">Main</h4>
           <nav className="flex flex-col gap-1">
-            {mainNavItems.map((item) => (
-              <Link
-                key={item.title}
-                href={item.href}
-                className="flex items-center space-x-3 px-2 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <item.icon className="w-5 h-5 text-muted-foreground" />
-                <span>{item.title}</span>
-              </Link>
-            ))}
+            {mainNavItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.title}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center space-x-3 px-2 py-2 text-sm font-medium rounded-md transition-colors",
+                    active
+                      ? "bg-[#E6F4EA] text-[#0D652D] dark:bg-green-900/30 dark:text-green-400"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <item.icon
+                    className={cn("w-5 h-5", active ? "text-[#0D652D] dark:text-green-400" : "text-muted-foreground")}
+                  />
+                  <span>{item.title}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
 
         <div className="px-4">
           <h4 className="text-xs font-bold text-muted-foreground mb-2 px-2 uppercase tracking-wider">Control Center</h4>
           <nav className="flex flex-col gap-1">
-            {controlCenterItems.map((item) => (
-              <Link
-                key={item.title}
-                href={item.href}
-                className={cn(
-                  "flex items-center space-x-3 px-2 py-2 text-sm font-medium rounded-md transition-colors",
-                  item.isActive
-                    ? "bg-[#E6F4EA] text-[#0D652D] dark:bg-green-900/30 dark:text-green-400"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                <item.icon
-                  className={cn("w-5 h-5", item.isActive ? "text-[#0D652D] dark:text-green-400" : "text-muted-foreground")}
-                />
-                <span>{item.title}</span>
-              </Link>
-            ))}
+            {controlCenterItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.title}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center space-x-3 px-2 py-2 text-sm font-medium rounded-md transition-colors",
+                    active
+                      ? "bg-[#E6F4EA] text-[#0D652D] dark:bg-green-900/30 dark:text-green-400"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <item.icon
+                    className={cn("w-5 h-5", active ? "text-[#0D652D] dark:text-green-400" : "text-muted-foreground")}
+                  />
+                  <span>{item.title}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>

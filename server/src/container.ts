@@ -7,6 +7,8 @@ import type { ImportsModuleContainer } from './modules/imports/imports.container
 import { createImportsContainer } from './modules/imports/imports.container.js';
 import type { HealthModuleContainer } from './modules/health/health.container.js';
 import { createHealthContainer } from './modules/health/health.container.js';
+import type { LeadsModuleContainer } from './modules/leads/leads.container.js';
+import { createLeadsContainer } from './modules/leads/leads.container.js';
 
 export interface DisposableResource {
   name: string;
@@ -23,6 +25,7 @@ export interface ApplicationContainer {
   modules: {
     health: HealthModuleContainer;
     imports: ImportsModuleContainer;
+    leads: LeadsModuleContainer;
   };
   resources: DisposableResource[];
 }
@@ -46,6 +49,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Application
     database: db,
     logger,
   });
+  const leads = createLeadsContainer({
+    database: db,
+  });
 
   return {
     config: env,
@@ -54,6 +60,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Application
     modules: {
       health,
       imports,
+      leads,
     },
     resources: [
       {

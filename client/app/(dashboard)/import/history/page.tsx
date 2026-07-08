@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { getImportHistory } from "@/lib/imports/api";
+import { PageLayout } from "@/components/layout/page-layout";
 import {
   Table,
   TableBody,
@@ -35,13 +36,11 @@ export default function ImportHistoryPage() {
   const jobs = data?.pages.flatMap((page) => page.jobs) ?? [];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Import History</h2>
-        <p className="text-muted-foreground">
-          View all previous CRM import jobs, their statuses, and summaries.
-        </p>
-      </div>
+    <PageLayout
+      title="Import History"
+      subtitle="View all previous CRM import jobs, their statuses, and summaries."
+    >
+      <div className="mx-auto max-w-7xl space-y-6">
 
       <Card>
         <CardHeader>
@@ -142,5 +141,6 @@ export default function ImportHistoryPage() {
         </CardContent>
       </Card>
     </div>
+    </PageLayout>
   );
 }

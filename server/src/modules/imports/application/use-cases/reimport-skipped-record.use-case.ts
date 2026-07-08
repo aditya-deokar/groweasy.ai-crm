@@ -2,6 +2,8 @@ import { ImportNotFoundError, InvalidCsvError } from '../../domain/errors/import
 import type { ImportRepository } from '../../domain/ports/import-repository.port.js';
 import type { AiCrmExtractor } from '../../domain/ports/ai-extractor.port.js';
 import { preValidateImportRows } from '../../domain/services/import-row-pre-validator.js';
+import type { Env } from '../../../../config/env.js';
+import { assessAiInputRows } from '../../../../shared/infrastructure/ai-safety-input-guardrails.js';
 
 export interface ReimportSkippedRecordInput {
   importId: string;
@@ -12,7 +14,8 @@ export interface ReimportSkippedRecordInput {
 export class ReimportSkippedRecordUseCase {
   public constructor(
     private readonly repository: ImportRepository,
-    private readonly aiExtractor: AiCrmExtractor
+    private readonly aiExtractor: AiCrmExtractor,
+    private readonly config: Env
   ) {}
 
   public async execute(input: ReimportSkippedRecordInput): Promise<void> {
@@ -41,6 +44,31 @@ export class ReimportSkippedRecordUseCase {
       throw new InvalidCsvError(`Still invalid: ${rowResult.skipReason}`);
     }
 
+    const guardrailResult = assessAiInputRows({
+      rows: [
+        {
+          rowIndex: input.rowIndex,
+          rawData: input.newRawData,
+        },
+      ],
+      limits: {
+        maxCellChars: this.config.aiMaxCellChars,
+        maxRowChars: this.config.aiMaxRowChars,
+        maxBatchInputTokens: this.config.aiMaxBatchInputTokens,
+      },
+    });
+
+    if (guardrailResult.findings.length > 0) {
+      await this.repository.recordAiGuardrailEvents({
+        importId: input.importId,
+        findings: guardrailResult.findings,
+      });
+    }
+
+    if (guardrailResult.decision === 'BLOCK') {
+      throw new InvalidCsvError('AI input guardrail blocked this corrected row.');
+    }
+
     // 2. Extract with AI synchronously
     const extractionResult = await this.aiExtractor.extractBatch({
       importId: input.importId,
@@ -53,8 +81,17 @@ export class ReimportSkippedRecordUseCase {
       ],
     });
 
+    if (extractionResult.metadata) {
+      await this.repository.recordAiModelRun({
+        importId: input.importId,
+        metadata: extractionResult.metadata,
+      });
+    }
+
     if (extractionResult.skippedRecords.length > 0) {
-      throw new InvalidCsvError(`AI Extraction failed: ${extractionResult.skippedRecords[0]?.reason}`);
+      throw new InvalidCsvError(
+        `AI Extraction failed: ${extractionResult.skippedRecords[0]?.reason}`
+      );
     }
 
     const extractedRecord = extractionResult.records[0];

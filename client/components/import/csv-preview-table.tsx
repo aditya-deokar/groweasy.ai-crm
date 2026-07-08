@@ -7,7 +7,6 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
@@ -18,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/status-badge";
 import type { PreviewRow } from "@/lib/imports/contracts";
 import {
   formatCellValue,
@@ -36,6 +36,7 @@ export function CsvPreviewTable({ rows, columns }: CsvPreviewTableProps) {
       {
         header: "ROW",
         accessorKey: "rowIndex",
+        size: 60,
       },
       {
         header: "STATUS",
@@ -43,14 +44,17 @@ export function CsvPreviewTable({ rows, columns }: CsvPreviewTableProps) {
         cell: ({ row }) => {
           const value = row.original.validationStatus;
           const tone = getImportStatusTone(value);
-
           return <StatusBadge label={formatStatusLabel(value)} tone={tone} />;
         },
       },
       {
         header: "SKIP REASON",
         accessorKey: "skipReason",
-        cell: ({ row }) => formatCellValue(row.original.skipReason),
+        cell: ({ row }) => {
+          const reason = row.original.skipReason;
+          if (!reason) return <span className="text-muted-foreground">—</span>;
+          return <span className="text-rose-600 dark:text-rose-400 text-xs">{reason}</span>;
+        },
       },
       ...columns.map<ColumnDef<PreviewRow>>((columnName) => ({
         header: columnName.toUpperCase(),
@@ -61,6 +65,7 @@ export function CsvPreviewTable({ rows, columns }: CsvPreviewTableProps) {
     [columns]
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: rows,
     columns: tableColumns,
@@ -68,16 +73,16 @@ export function CsvPreviewTable({ rows, columns }: CsvPreviewTableProps) {
   });
 
   return (
-    <Card className="overflow-hidden border bg-card text-card-foreground shadow-sm">
-      <ScrollArea className="h-[600px] w-full rounded-md">
+    <Card className="overflow-hidden border shadow-sm">
+      <ScrollArea className="h-[400px] w-full rounded-md">
         <Table>
-          <TableHeader className="sticky top-0 z-10 bg-muted/50">
+          <TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur-sm">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-foreground"
+                    className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider"
                   >
                     {header.isPlaceholder
                       ? null
@@ -89,25 +94,33 @@ export function CsvPreviewTable({ rows, columns }: CsvPreviewTableProps) {
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} className="hover:bg-muted/50">
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className="whitespace-nowrap px-4 py-2 text-sm text-muted-foreground"
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const isSkipped = row.original.validationStatus === "SKIPPED";
+                return (
+                  <TableRow
+                    key={row.id}
+                    className={`hover:bg-muted/30 transition-colors ${
+                      isSkipped ? "bg-rose-50/30 dark:bg-rose-950/10" : ""
+                    }`}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className="whitespace-nowrap px-4 py-2 text-sm text-muted-foreground"
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell
                   colSpan={tableColumns.length}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No preview rows are available.
+                  No preview rows available.
                 </TableCell>
               </TableRow>
             )}
@@ -117,26 +130,4 @@ export function CsvPreviewTable({ rows, columns }: CsvPreviewTableProps) {
       </ScrollArea>
     </Card>
   );
-}
-
-function StatusBadge({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: "success" | "danger" | "warning" | "neutral";
-}) {
-  if (tone === "success") {
-    return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{label}</Badge>;
-  }
-
-  if (tone === "danger") {
-    return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{label}</Badge>;
-  }
-
-  if (tone === "warning") {
-    return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{label}</Badge>;
-  }
-
-  return <Badge variant="outline">{label}</Badge>;
 }

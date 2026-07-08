@@ -20,6 +20,7 @@ export function createApiRouter(container: ApplicationContainer): Router {
 
   router.use('/health', container.modules.health.router);
   router.use('/imports', container.modules.imports.router);
+  router.use('/leads', container.modules.leads.router);
 
   return router;
 }

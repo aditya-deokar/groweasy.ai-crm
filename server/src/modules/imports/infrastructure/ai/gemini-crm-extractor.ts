@@ -8,16 +8,15 @@ import type {
   AiCrmExtractionInput,
   AiCrmExtractor,
 } from '../../domain/ports/ai-extractor.port.js';
-import {
-  buildCrmExtractionUserPrompt,
-  CRM_EXTRACTION_SYSTEM_PROMPT,
-} from './prompts/crm-extraction.prompt.js';
+import { buildCrmExtractionPrompt } from './prompts/crm-extraction.prompt.js';
 import { geminiCrmExtractionJsonSchema } from './schemas/gemini-crm-extraction.schema.js';
 import { validateCrmExtractionOutput } from './validators/crm-extraction-output.validator.js';
+import {
+  estimateTokenCount,
+  hashText,
+} from '../../../../shared/infrastructure/ai-safety-redaction.js';
 
-const GEMINI_GENERATE_CONTENT_BASE_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models';
-const PROVIDER_ERROR_BODY_MAX_LENGTH = 500;
+const GEMINI_GENERATE_CONTENT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 type FetchLike = typeof fetch;
 
@@ -34,6 +33,13 @@ interface GeminiGenerateContentResponse {
   }>;
 }
 
+interface GeminiErrorResponse {
+  error?: {
+    message?: unknown;
+    status?: unknown;
+  };
+}
+
 export class GeminiCrmExtractor implements AiCrmExtractor {
   public constructor(
     private readonly config: Env,
@@ -45,9 +51,13 @@ export class GeminiCrmExtractor implements AiCrmExtractor {
       throw new AiProviderUnavailableError('GEMINI_API_KEY is required for Gemini extraction.');
     }
 
+    const startedAt = Date.now();
+    const promptBundle = buildCrmExtractionPrompt(input);
+
     try {
       const response = await this.fetchImpl(getGeminiGenerateContentUrl(this.config.geminiModel), {
         method: 'POST',
+        signal: AbortSignal.timeout(this.config.aiProviderTimeoutMs),
         headers: {
           'Content-Type': 'application/json',
           'x-goog-api-key': this.config.geminiApiKey,
@@ -56,7 +66,7 @@ export class GeminiCrmExtractor implements AiCrmExtractor {
           systemInstruction: {
             parts: [
               {
-                text: CRM_EXTRACTION_SYSTEM_PROMPT,
+                text: promptBundle.systemPrompt,
               },
             ],
           },
@@ -65,7 +75,7 @@ export class GeminiCrmExtractor implements AiCrmExtractor {
               role: 'user',
               parts: [
                 {
-                  text: buildCrmExtractionUserPrompt(input),
+                  text: promptBundle.userPrompt,
                 },
               ],
             },
@@ -79,21 +89,42 @@ export class GeminiCrmExtractor implements AiCrmExtractor {
       });
 
       if (!response.ok) {
-        throw new AiProviderUnavailableError('Gemini extraction request failed.', {
+        const responseBody = await response.text();
+        const providerMessage = extractProviderErrorMessage(responseBody);
+
+        throw new AiProviderUnavailableError(buildProviderFailureMessage(providerMessage), {
           provider: 'gemini',
           status: response.status,
           statusText: response.statusText,
-          body: truncateProviderBody(await response.text()),
+          bodyHash: hashText(responseBody),
+          providerMessage,
         });
       }
 
       const responseBody = (await response.json()) as GeminiGenerateContentResponse;
       const outputText = extractGeminiOutputText(responseBody);
       const output = parseGeminiJsonOutput(outputText);
-
-      return validateCrmExtractionOutput(output, input, {
+      const result = validateCrmExtractionOutput(output, input, {
         defaultPhoneRegion: this.config.defaultPhoneRegion,
       });
+
+      return {
+        ...result,
+        metadata: {
+          feature: promptBundle.prompt.feature,
+          provider: 'gemini',
+          model: this.config.geminiModel,
+          promptId: promptBundle.prompt.promptId,
+          promptVersion: promptBundle.prompt.version,
+          promptSha256: promptBundle.prompt.sha256,
+          inputHash: hashText(`${promptBundle.systemPrompt}\n${promptBundle.userPrompt}`),
+          outputHash: hashText(outputText),
+          inputTokens: estimateTokenCount(promptBundle.userPrompt),
+          outputTokens: estimateTokenCount(outputText),
+          latencyMs: Date.now() - startedAt,
+          outcome: 'SUCCEEDED',
+        },
+      };
     } catch (error) {
       if (
         error instanceof AiInvalidStructuredOutputError ||
@@ -162,8 +193,17 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
-function truncateProviderBody(value: string): string {
-  return value.length > PROVIDER_ERROR_BODY_MAX_LENGTH
-    ? `${value.slice(0, PROVIDER_ERROR_BODY_MAX_LENGTH)}...`
-    : value;
+function buildProviderFailureMessage(providerMessage: string | null): string {
+  return providerMessage
+    ? `Gemini extraction request failed: ${providerMessage}`
+    : 'Gemini extraction request failed.';
+}
+
+function extractProviderErrorMessage(responseBody: string): string | null {
+  try {
+    const parsed = JSON.parse(responseBody) as GeminiErrorResponse;
+    return firstString(parsed.error?.message, parsed.error?.status);
+  } catch {
+    return null;
+  }
 }

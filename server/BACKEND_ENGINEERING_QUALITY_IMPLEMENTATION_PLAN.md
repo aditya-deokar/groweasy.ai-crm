@@ -190,7 +190,7 @@ Guarantee bounded AI calls and visible progress.
 ```env
 AI_BATCH_SIZE=25
 AI_BATCH_CONCURRENCY=2
-AI_MAX_RETRIES=2
+AI_MAX_RETRIES=4
 AI_RETRY_BASE_DELAY_MS=1000
 ```
 
@@ -261,8 +261,8 @@ attempt 2: wait AI_RETRY_BASE_DELAY_MS
 attempt 3 optional: wait AI_RETRY_BASE_DELAY_MS * 2
 ```
 
-- Recommended assignment setting: `AI_MAX_RETRIES=2`.
-- Keep current system extensible if we choose `3` for production.
+- Recommended assignment setting: `AI_MAX_RETRIES=4`.
+- Keep current system extensible if we choose `5` for production.
 - Add circuit breaker config:
 
 ```env
@@ -764,7 +764,7 @@ AI_TEMPERATURE=0
 # AI batching and resilience
 AI_BATCH_SIZE=25
 AI_BATCH_CONCURRENCY=2
-AI_MAX_RETRIES=2
+AI_MAX_RETRIES=4
 AI_RETRY_BASE_DELAY_MS=1000
 AI_CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
 AI_CIRCUIT_BREAKER_COOLDOWN_MS=30000
@@ -819,10 +819,9 @@ npm run dev
 
 Implement the remaining hardening items in this order:
 
-1. Enforce AI batch size min/max and `AI_MAX_RETRIES=2`.
+1. Enforce AI batch size min/max and `AI_MAX_RETRIES=4`.
 2. Add strict AI output row-index reconciliation.
 3. Strengthen phone/date/status/source normalization tests.
 4. Add a fake-AI integration test for preview -> confirm -> status -> result.
 5. Add a generated 5,000-row fixture test proving batching.
 6. Add README demo commands and curl examples for the reviewer.
-

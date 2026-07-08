@@ -12,6 +12,7 @@ import {
   crmExtractionBatchSchema,
   type CrmExtractionBatchOutput,
 } from '../schemas/crm-extraction.schema.js';
+import { inspectAiOutputObject } from '../../../../../shared/infrastructure/ai-safety-output-guardrails.js';
 
 export function validateCrmExtractionOutput(
   output: unknown,
@@ -28,6 +29,7 @@ export function validateCrmExtractionOutput(
   }
 
   assertRowsMatchInput(parsed.data, input);
+  assertOutputPassesGuardrails(parsed.data);
 
   const records: AiCrmExtractionBatchResult['records'] = [];
   const skippedRecords: AiCrmExtractionBatchResult['skippedRecords'] = [];
@@ -71,10 +73,28 @@ export function validateCrmExtractionOutput(
   };
 }
 
-function assertRowsMatchInput(
-  output: CrmExtractionBatchOutput,
-  input: AiCrmExtractionInput
-): void {
+function assertOutputPassesGuardrails(output: CrmExtractionBatchOutput): void {
+  const findings = output.rows.flatMap(
+    (row) =>
+      inspectAiOutputObject({
+        value: {
+          skipReason: row.skipReason,
+          record: row.record,
+        },
+        rowIndex: row.rowIndex,
+        prefix: 'rows',
+      }).findings
+  );
+
+  if (findings.length > 0) {
+    throw new AiInvalidStructuredOutputError({
+      code: 'AI_OUTPUT_GUARDRAIL_BLOCKED',
+      findings,
+    });
+  }
+}
+
+function assertRowsMatchInput(output: CrmExtractionBatchOutput, input: AiCrmExtractionInput): void {
   const expectedIndexes = new Set(input.rows.map((row) => row.rowIndex));
   const seenIndexes = new Set<number>();
   const duplicateIndexes = new Set<number>();

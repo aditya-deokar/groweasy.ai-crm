@@ -115,7 +115,7 @@ GEMINI_MODEL=gemini-3.5-flash
 AI_TEMPERATURE=0
 AI_BATCH_SIZE=25
 AI_BATCH_CONCURRENCY=2
-AI_MAX_RETRIES=2
+AI_MAX_RETRIES=4
 AI_RETRY_BASE_DELAY_MS=1000
 AI_CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
 AI_CIRCUIT_BREAKER_COOLDOWN_MS=30000
@@ -128,7 +128,7 @@ Rules:
 - All environment reads go through `src/config/env.ts`.
 - Invalid environment values fail at startup.
 - `AI_BATCH_SIZE` is clamped to 20-50.
-- `AI_MAX_RETRIES` is clamped to 0-2.
+- `AI_MAX_RETRIES` is clamped to 0-5.
 - Preview does not require an AI key.
 - Confirming an import requires `GEMINI_API_KEY` when `AI_PROVIDER=gemini`.
 - OpenAI remains available with `AI_PROVIDER=openai` and `OPENAI_API_KEY`.

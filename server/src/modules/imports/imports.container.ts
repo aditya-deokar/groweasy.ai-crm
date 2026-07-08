@@ -52,14 +52,18 @@ export function createImportsContainer(input: ImportsContainerInput): ImportsMod
   const repository = new DrizzleImportRepository(input.database);
   const aiExtractor = createAiCrmExtractor(input.config);
   const workflow = new LangGraphImportWorkflow(repository, aiExtractor, input.config, input.logger);
-  const processor = new ImportProcessor(workflow, input.logger);
+  const processor = new ImportProcessor(workflow, input.logger, input.config);
   const createImportPreview = new CreateImportPreviewUseCase(csvParser, repository, input.config);
   const confirmImport = new ConfirmImportUseCase(repository, processor, input.config);
   const getImportHistory = new GetImportHistoryUseCase(repository);
   const getImportStatus = new GetImportStatusUseCase(repository);
   const getImportResult = new GetImportResultUseCase(repository);
   const updateImportRecord = new UpdateImportRecordUseCase(repository);
-  const reimportSkippedRecord = new ReimportSkippedRecordUseCase(repository, aiExtractor);
+  const reimportSkippedRecord = new ReimportSkippedRecordUseCase(
+    repository,
+    aiExtractor,
+    input.config
+  );
   const retryFailedBatches = new RetryFailedBatchesUseCase(repository, processor);
   const cancelImport = new CancelImportUseCase(repository);
   const controller = new ImportsController(

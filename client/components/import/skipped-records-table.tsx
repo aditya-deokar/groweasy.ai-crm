@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wrench } from "lucide-react";
+import { Wrench, AlertCircle } from "lucide-react";
 import { CorrectSkippedModal } from "./correct-skipped-modal";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -22,76 +22,101 @@ interface SkippedRecordsTableProps {
   isReimportingSkipped?: boolean;
 }
 
+/** Show key identifiers from raw data instead of full JSON blob */
+function getRecordSummary(rawData: Record<string, string>): string {
+  const parts: string[] = [];
+  const name = rawData.name || rawData.Name || rawData.NAME;
+  const email = rawData.email || rawData.Email || rawData.EMAIL;
+  const mobile = rawData.mobile_without_country_code || rawData.phone || rawData.Phone;
+
+  if (name) parts.push(name);
+  if (email) parts.push(email);
+  if (mobile) parts.push(mobile);
+
+  if (parts.length === 0) {
+    // Fall back to first 2 non-empty values
+    const values = Object.values(rawData).filter((v) => v && v.trim().length > 0);
+    return values.slice(0, 2).join(" · ") || "No data";
+  }
+
+  return parts.join(" · ");
+}
+
 export function SkippedRecordsTable({ records, onReimportSkipped, isReimportingSkipped = false }: SkippedRecordsTableProps) {
   const [correctingRow, setCorrectingRow] = useState<SkippedRecord | null>(null);
 
   return (
     <div className="flex flex-col space-y-4">
-      <Card className="overflow-hidden border border-red-200 shadow-sm dark:border-red-900/50">
-      <ScrollArea 
-        className="h-[320px] w-full rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-inset"
-        tabIndex={0}
-        aria-label="Skipped records table"
-      >
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-red-50 dark:bg-red-950/50">
-            <TableRow>
-              <TableHead className="w-[100px] whitespace-nowrap px-4 py-3 text-xs font-semibold text-red-900 dark:text-red-400">
-                ROW NUMBER
-              </TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-red-900 dark:text-red-400">
-                REASON
-              </TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-red-900 dark:text-red-400">
-                ORIGINAL DATA (JSON)
-              </TableHead>
-              <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-red-900 dark:text-red-400 text-right">
-                ACTIONS
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.length > 0 ? (
-              records.map((row) => (
-                <TableRow key={`${row.rowIndex}-${row.reason}`} className="hover:bg-red-50/50 dark:hover:bg-red-900/20">
-                  <TableCell className="whitespace-nowrap px-4 py-2 text-sm font-medium text-foreground">
-                    {row.rowIndex}
-                  </TableCell>
-                  <TableCell className="px-4 py-2 text-sm text-red-600 dark:text-red-400">
-                    {row.reason}
-                  </TableCell>
-                  <TableCell className="px-4 py-2 font-mono text-xs text-muted-foreground">
-                    <div className="max-w-md truncate" title={JSON.stringify(row.rawData)}>
-                      {JSON.stringify(row.rawData)}
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-4 py-2 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCorrectingRow(row)}
-                      aria-label={`Correct skipped record on row ${row.rowIndex}`}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/40 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:outline-none"
-                    >
-                      <Wrench className="mr-2 h-4 w-4" />
-                      Correct
-                    </Button>
+      <Card className="overflow-hidden border border-rose-200/70 shadow-sm dark:border-rose-900/40">
+        <ScrollArea
+          className="h-[320px] w-full rounded-md"
+          tabIndex={0}
+          aria-label="Skipped records table"
+        >
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-rose-50/80 dark:bg-rose-950/40 backdrop-blur-sm">
+              <TableRow>
+                <TableHead className="w-[70px] whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                  Row
+                </TableHead>
+                <TableHead className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                  Skip Reason
+                </TableHead>
+                <TableHead className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                  Record Preview
+                </TableHead>
+                <TableHead className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold text-rose-700 dark:text-rose-400 uppercase tracking-wider text-right">
+                  Actions
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {records.length > 0 ? (
+                records.map((row) => (
+                  <TableRow key={`${row.rowIndex}-${row.reason}`} className="hover:bg-rose-50/30 dark:hover:bg-rose-900/10 transition-colors">
+                    <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-foreground">
+                      #{row.rowIndex}
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                        <span className="text-sm text-rose-600 dark:text-rose-400">{row.reason}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5">
+                      <span className="text-sm text-muted-foreground max-w-[300px] truncate block" title={JSON.stringify(row.rawData)}>
+                        {getRecordSummary(row.rawData)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5 text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCorrectingRow(row)}
+                        aria-label={`Fix and re-import record on row ${row.rowIndex}`}
+                        className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:border-rose-800 dark:hover:bg-rose-900/30 gap-1.5"
+                      >
+                        <Wrench className="h-3.5 w-3.5" />
+                        Fix & Re-import
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-20 text-center text-sm text-muted-foreground">
+                    No skipped records — all leads imported successfully!
                   </TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                  No skipped records.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </ScrollArea>
-    </Card>
+              )}
+            </TableBody>
+          </Table>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </Card>
 
       <CorrectSkippedModal
+        key={correctingRow?.rowIndex ?? "correct-skipped-empty"}
         open={correctingRow !== null}
         onOpenChange={(open) => !open && setCorrectingRow(null)}
         rawData={correctingRow?.rawData ?? null}

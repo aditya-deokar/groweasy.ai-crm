@@ -37,6 +37,22 @@ Errors use the same envelope shape:
 }
 ```
 
+AI safety fields returned by status and result endpoints:
+
+```ts
+type AiGuardrailDecision = 'ALLOW' | 'WARN' | 'BLOCK';
+
+interface AiSafetySummary {
+  promptVersion: string | null;
+  provider: 'gemini' | 'openai' | null;
+  model: string | null;
+  blockedRows: number;
+  warnedRows: number;
+  outputRejectedBatches: number;
+  safetyEvents: number;
+}
+```
+
 ## POST /imports/preview
 
 Uploads and parses a CSV without calling AI.
@@ -114,7 +130,7 @@ Behavior:
 Response data:
 
 ```ts
-ImportStatusResult
+ImportStatusResult;
 ```
 
 ## GET /imports/:importId/status
@@ -132,7 +148,7 @@ Response data:
 ```ts
 {
   importId: string;
-  status: "UPLOADED" | "PARSED" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  status: 'UPLOADED' | 'PARSED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   progress: {
     totalRows: number;
     processedRows: number;
@@ -140,12 +156,13 @@ Response data:
     completedBatches: number;
     failedBatches: number;
     percent: number;
-  };
+  }
   totals: {
     imported: number;
     skipped: number;
-  };
+  }
   error: string | null;
+  aiSafety: AiSafetySummary;
   recentEvents: Array<{
     eventType: string;
     message: string;
@@ -191,7 +208,7 @@ Response data:
     processingBatches: number;
     processedRows: number;
     unprocessedRows: number;
-  };
+  }
   batches: Array<{
     id: string;
     batchIndex: number;
@@ -200,8 +217,12 @@ Response data:
     rowEndIndex: number;
     rowCount: number;
     retryCount: number;
+    safetyEventCount: number;
+    blockedRows: number;
+    warnedRows: number;
     errorMessage: string | null;
   }>;
+  aiSafety: AiSafetySummary;
   skippedReasonCounts: Record<string, number>;
   events: Array<{
     eventType: string;
@@ -222,7 +243,7 @@ Response data:
   pageInfo: {
     nextCursor: number | null;
     hasMore: boolean;
-  };
+  }
 }
 ```
 
@@ -239,7 +260,7 @@ POST /api/v1/imports/{importId}/retry-failed
 Response data:
 
 ```ts
-ImportStatusResult
+ImportStatusResult;
 ```
 
 ## POST /imports/:importId/cancel
@@ -255,7 +276,7 @@ POST /api/v1/imports/{importId}/cancel
 Response data:
 
 ```ts
-ImportStatusResult
+ImportStatusResult;
 ```
 
 ## Error Codes
@@ -274,6 +295,8 @@ IMPORT_NOT_FOUND
 IMPORT_INVALID_STATE
 AI_PROVIDER_UNAVAILABLE
 AI_INVALID_STRUCTURED_OUTPUT
+AI_INPUT_GUARDRAIL_BLOCKED
+AI_OUTPUT_GUARDRAIL_BLOCKED
 AI_BATCH_FAILED
 VALIDATION_ERROR
 INTERNAL_SERVER_ERROR
@@ -290,4 +313,5 @@ Rules:
 - Default batch size is 25.
 - A 5,000-row candidate import becomes 200 AI batches at batch size 25.
 - Failed batches can be retried with `/imports/:importId/retry-failed`.
-
+- Rows blocked by AI input guardrails are persisted as skipped rows with reason `AI_INPUT_GUARDRAIL_BLOCKED`.
+- AI safety telemetry is redacted; raw prompts, raw provider output, and raw CSV row bodies are not returned by public import APIs.

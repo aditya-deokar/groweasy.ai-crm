@@ -2,8 +2,9 @@
 
 import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { FileText, LoaderCircle, UploadCloud } from "lucide-react";
+import { FileText, LoaderCircle, UploadCloud, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatBytes } from "@/lib/utils/format";
 
 interface UploadZoneProps {
   onUpload: (file: File) => void;
@@ -12,12 +13,6 @@ interface UploadZoneProps {
   activeFileSize?: number | null;
   isUploading?: boolean;
   disabled?: boolean;
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function UploadZone({
@@ -60,90 +55,84 @@ export function UploadZone({
   });
 
   return (
-    <div className="flex flex-col items-center space-y-6 p-8">
-      <div className="text-center">
-        <h2 className="mb-2 text-2xl font-bold text-foreground">Import Leads via CSV</h2>
-        <p className="text-sm text-muted-foreground">
-          Upload a CSV file to preview, validate, and import live CRM-ready leads.
-        </p>
-      </div>
-
+    <div className="flex flex-col items-center space-y-5 py-2">
       <div
         {...getRootProps()}
         role="button"
         tabIndex={disabled ? -1 : 0}
         aria-label="Upload CSV file by dropping or clicking"
         onKeyDown={onKeyDown}
-        className={`w-full max-w-xl rounded-xl border-2 border-dashed p-10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${
+        className={`w-full rounded-xl border-2 border-dashed p-8 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D652D] focus-visible:ring-offset-2 ${
           disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"
         } ${
           isDragActive
-            ? "border-green-600 bg-green-50 dark:bg-green-900/10"
-            : "border-border hover:border-green-600 hover:bg-muted/50"
+            ? "border-[#0D652D] bg-emerald-50/60 scale-[1.01] dark:bg-emerald-900/10"
+            : "border-border hover:border-[#0D652D]/50 hover:bg-muted/30"
         }`}
       >
         <input {...getInputProps()} id="file-upload-input" />
-        <div className="flex flex-col items-center justify-center space-y-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-lg border bg-card shadow-sm">
+        <div className="flex flex-col items-center justify-center space-y-3">
+          <div
+            className={`flex h-14 w-14 items-center justify-center rounded-xl transition-all duration-200 ${
+              isDragActive
+                ? "bg-[#0D652D] text-white shadow-lg scale-110"
+                : "bg-emerald-50 text-[#0D652D] dark:bg-emerald-950/40 dark:text-emerald-400"
+            }`}
+          >
             {isUploading ? (
-              <LoaderCircle className="h-8 w-8 animate-spin text-green-600 dark:text-green-500" />
+              <LoaderCircle className="h-7 w-7 animate-spin" />
             ) : activeFileName ? (
-              <FileText className="h-8 w-8 text-green-600 dark:text-green-500" />
+              <FileText className="h-7 w-7" />
             ) : (
-              <UploadCloud className="h-8 w-8 text-green-600 dark:text-green-500" />
+              <UploadCloud className="h-7 w-7" />
             )}
           </div>
 
-          <div className="text-center">
+          <div className="text-center space-y-1">
             {isUploading ? (
               <>
-                <p className="text-lg font-bold text-foreground">
-                  Uploading and validating your CSV
+                <p className="text-base font-semibold text-foreground">
+                  Parsing your CSV...
                 </p>
-                <p className="text-muted-foreground">{activeFileName ?? "Please wait..."}</p>
+                <p className="text-sm text-muted-foreground">{activeFileName ?? "Please wait"}</p>
               </>
             ) : activeFileName ? (
               <>
-                <p className="font-semibold text-foreground">{activeFileName}</p>
-                {activeFileSize != null && activeFileSize > 0 ? (
+                <p className="text-base font-semibold text-foreground">{activeFileName}</p>
+                {activeFileSize != null && activeFileSize > 0 && (
                   <p className="text-sm text-muted-foreground">
-                    {formatFileSize(activeFileSize)} — ready for preview
+                    {formatBytes(activeFileSize)} — ready for review
                   </p>
-                ) : (
-                  <p className="text-muted-foreground">Preview fetched from the backend.</p>
                 )}
               </>
             ) : (
               <>
-                <p className="text-lg font-bold text-foreground">Drop your CSV file here</p>
-                <p className="text-muted-foreground">or click to browse files</p>
+                <p className="text-base font-semibold text-foreground">
+                  Drop your CSV file here
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  or <span className="text-[#0D652D] font-medium dark:text-emerald-400">click to browse</span>
+                </p>
               </>
             )}
           </div>
 
-          <div className="inline-flex items-center space-x-2 rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground">
-            <span>i</span>
-            <span>Supported file: .csv (max 5MB)</span>
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 text-xs text-muted-foreground">
+            <Info className="h-3 w-3" />
+            <span>.csv files only · max 5 MB</span>
           </div>
         </div>
       </div>
 
-      <div className="max-w-xl text-center text-xs text-muted-foreground/70">
-        Required headers: created_at, name, email, country_code,
-        mobile_without_country_code, company, city, state, country, lead_owner,
-        crm_status, crm_note. The backend will validate, batch, and normalize the
-        records after you confirm the import.
-      </div>
-
       <Button
-        variant="outline"
+        variant="ghost"
+        size="sm"
         onClick={onDownloadSample}
-        className="border-green-700 text-green-700 hover:bg-green-50 dark:border-green-500 dark:text-green-500 dark:hover:bg-green-950"
+        className="text-[#0D652D] hover:text-[#0A4D22] hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 gap-1.5"
       >
-        <FileText className="mr-2 h-4 w-4" />
-        Download Sample CSV Template
+        <FileText className="h-3.5 w-3.5" />
+        Download sample template
       </Button>
     </div>
   );
 }
-

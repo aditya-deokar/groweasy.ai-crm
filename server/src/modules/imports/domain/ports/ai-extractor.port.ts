@@ -1,4 +1,5 @@
 import type { CrmRecordWithRow } from '../entities/crm-record.js';
+import type { AiModelCallMetadata } from '../../../../shared/infrastructure/ai-safety-types.js';
 
 export interface AiExtractionRow {
   rowIndex: number;
@@ -7,6 +8,8 @@ export interface AiExtractionRow {
 
 export interface AiCrmExtractionInput {
   importId: string;
+  batchId?: string;
+  batchIndex?: number;
   headers: string[];
   rows: AiExtractionRow[];
 }
@@ -19,6 +22,7 @@ export interface AiSkippedRecord {
 export interface AiCrmExtractionBatchResult {
   records: CrmRecordWithRow[];
   skippedRecords: AiSkippedRecord[];
+  metadata?: AiModelCallMetadata;
 }
 
 export interface AiCrmExtractor {

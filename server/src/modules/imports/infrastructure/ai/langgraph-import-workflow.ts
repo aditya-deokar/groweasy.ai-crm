@@ -5,8 +5,20 @@ import { CircuitBreaker } from '../../../../shared/infrastructure/resilience/cir
 import { RetryPolicy } from '../../../../shared/infrastructure/resilience/retry-policy.js';
 import { AiInvalidStructuredOutputError } from '../../domain/errors/import-errors.js';
 import type { AiCrmExtractor } from '../../domain/ports/ai-extractor.port.js';
-import type { ImportRepository, PersistedImportRow } from '../../domain/ports/import-repository.port.js';
+import type {
+  ImportRepository,
+  PersistedImportRow,
+} from '../../domain/ports/import-repository.port.js';
 import { extractContactsFromRawRow } from '../../domain/services/row-contact-validator.js';
+import {
+  assessAiInputRows,
+  combineDecision,
+} from '../../../../shared/infrastructure/ai-safety-input-guardrails.js';
+import { exceedsBatchTokenBudget } from '../../../../shared/infrastructure/ai-safety-budget.js';
+import type {
+  AiBudgetLimits,
+  AiGuardrailFinding,
+} from '../../../../shared/infrastructure/ai-safety-types.js';
 
 export interface ImportWorkflowInput {
   importId: string;
@@ -73,10 +85,18 @@ export class LangGraphImportWorkflow {
   }
 
   private async processImport(input: ImportWorkflowInput): Promise<ImportWorkflowResult> {
-    const batches = await this.repository.getProcessableBatches(input.importId, input.includeFailed);
+    if (input.includeFailed) {
+      this.circuitBreaker.reset();
+    }
+
+    const batches = await this.repository.getProcessableBatches(
+      input.importId,
+      input.includeFailed
+    );
     const limiter = pLimit(this.config.aiBatchConcurrency);
 
     let processedBatches = 0;
+    const failedBatchMessages: string[] = [];
 
     await Promise.all(
       batches.map((batch) =>
@@ -104,7 +124,13 @@ export class LangGraphImportWorkflow {
               batch.rowStartIndex,
               batch.rowEndIndex
             );
-            const result = await this.extractRows(input.importId, job.headers, rows);
+            const result = await this.extractRows(
+              input.importId,
+              batch.id,
+              batch.batchIndex,
+              job.headers,
+              rows
+            );
 
             await this.repository.persistBatchResult({
               importId: input.importId,
@@ -127,7 +153,16 @@ export class LangGraphImportWorkflow {
               'Import batch processing completed'
             );
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown batch failure.';
+            const message = getErrorMessage(error);
+            failedBatchMessages.push(message);
+            const guardrailFindings = getGuardrailFindings(error);
+            if (guardrailFindings.length > 0) {
+              await this.repository.recordAiGuardrailEvents({
+                importId: input.importId,
+                batchId: batch.id,
+                findings: guardrailFindings,
+              });
+            }
             this.logger.error(
               {
                 err: error,
@@ -145,7 +180,7 @@ export class LangGraphImportWorkflow {
 
     const status = await this.repository.getStatus(input.importId);
     if (status && status.progress.failedBatches > 0) {
-      await this.repository.failJob(input.importId, 'One or more import batches failed.');
+      await this.repository.failJob(input.importId, buildImportFailureMessage(failedBatchMessages));
     } else {
       await this.repository.completeJobIfFinished(input.importId);
     }
@@ -156,7 +191,13 @@ export class LangGraphImportWorkflow {
     };
   }
 
-  private async extractRows(importId: string, headers: string[], rows: PersistedImportRow[]) {
+  private async extractRows(
+    importId: string,
+    batchId: string,
+    batchIndex: number,
+    headers: string[],
+    rows: PersistedImportRow[]
+  ) {
     const skippedRecords = rows
       .filter((row) => !extractContactsFromRawRow(row.rawData).hasContact)
       .map((row) => ({
@@ -176,14 +217,67 @@ export class LangGraphImportWorkflow {
       rowIndex: row.rowIndex,
       rawData: row.rawData,
     }));
+    const guardrailResult = assessAiInputRows({
+      rows: aiRows,
+      limits: this.getAiBudgetLimits(),
+    });
+    const budgetFindings = this.getBatchBudgetFindings(headers, guardrailResult.allowedRows);
+    const findings = [...guardrailResult.findings, ...budgetFindings];
+    const decision = combineDecision(findings);
+    const blockedRowIndexes = new Set(guardrailResult.blockedRows.map((row) => row.rowIndex));
+
+    if (decision !== 'ALLOW') {
+      await this.repository.recordAiGuardrailEvents({
+        importId,
+        batchId,
+        findings,
+      });
+      this.logger.warn(
+        {
+          importId,
+          batchId,
+          batchIndex,
+          decision,
+          findingCount: findings.length,
+          blockedRows: guardrailResult.blockedRows.length,
+          warnedRows: guardrailResult.warnedRows.length,
+        },
+        'AI input guardrails triggered'
+      );
+    }
+
+    const rowsAllowedBeforeBudget = guardrailResult.allowedRows.filter(
+      (row) => !blockedRowIndexes.has(row.rowIndex)
+    );
+    const rowsAllowedForAi = budgetFindings.length === 0 ? rowsAllowedBeforeBudget : [];
+    const guardrailSkippedRecords = guardrailResult.blockedRows.map((row) => ({
+      rowIndex: row.rowIndex,
+      reason: 'AI_INPUT_GUARDRAIL_BLOCKED',
+    }));
+    const budgetSkippedRecords =
+      budgetFindings.length > 0
+        ? rowsAllowedBeforeBudget.map((row) => ({
+            rowIndex: row.rowIndex,
+            reason: 'AI_INPUT_BATCH_TOKEN_BUDGET_EXCEEDED',
+          }))
+        : [];
+
+    if (rowsAllowedForAi.length === 0) {
+      return {
+        records: [],
+        skippedRecords: [...skippedRecords, ...guardrailSkippedRecords, ...budgetSkippedRecords],
+      };
+    }
 
     const aiResult = await this.retryPolicy.execute(
       () =>
         this.circuitBreaker.execute(() =>
           this.aiExtractor.extractBatch({
             importId,
+            batchId,
+            batchIndex,
             headers,
-            rows: aiRows,
+            rows: rowsAllowedForAi,
           })
         ),
       ({ attempt, delayMs, error }) =>
@@ -199,10 +293,65 @@ export class LangGraphImportWorkflow {
         )
     );
 
+    if (aiResult.metadata) {
+      await this.repository.recordAiModelRun({
+        importId,
+        batchId,
+        metadata: {
+          ...aiResult.metadata,
+          guardrailSummary: {
+            inputDecision: decision,
+            inputFindings: findings.length,
+            blockedRows: guardrailResult.blockedRows.length,
+            warnedRows: guardrailResult.warnedRows.length,
+          },
+        },
+      });
+    }
+
     return {
       records: aiResult.records,
-      skippedRecords: [...skippedRecords, ...aiResult.skippedRecords],
+      skippedRecords: [
+        ...skippedRecords,
+        ...guardrailSkippedRecords,
+        ...budgetSkippedRecords,
+        ...aiResult.skippedRecords,
+      ],
     };
+  }
+
+  private getAiBudgetLimits(): AiBudgetLimits {
+    return {
+      maxCellChars: this.config.aiMaxCellChars,
+      maxRowChars: this.config.aiMaxRowChars,
+      maxBatchInputTokens: this.config.aiMaxBatchInputTokens,
+    };
+  }
+
+  private getBatchBudgetFindings(
+    headers: string[],
+    rows: Array<{ rowIndex: number; rawData: Record<string, string> }>
+  ): AiGuardrailFinding[] {
+    if (
+      !exceedsBatchTokenBudget({
+        promptText: JSON.stringify({ headers, rows }),
+        limits: this.getAiBudgetLimits(),
+      })
+    ) {
+      return [];
+    }
+
+    return rows.map((row) => ({
+      stage: 'INPUT' as const,
+      ruleId: 'AI_INPUT_BATCH_TOKEN_BUDGET_EXCEEDED',
+      severity: 'HIGH' as const,
+      decision: 'BLOCK' as const,
+      message: 'AI batch exceeds the configured input token budget.',
+      rowIndex: row.rowIndex,
+      metadata: {
+        maxBatchInputTokens: this.config.aiMaxBatchInputTokens,
+      },
+    }));
   }
 }
 
@@ -212,4 +361,50 @@ function shouldRetryAiBatch(error: unknown, attempt: number): boolean {
   }
 
   return true;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown batch failure.';
+}
+
+function buildImportFailureMessage(failedBatchMessages: string[]): string {
+  const uniqueMessages = Array.from(
+    new Set(failedBatchMessages.map((message) => message.trim()).filter(Boolean))
+  );
+
+  if (uniqueMessages.length === 0) {
+    return 'One or more import batches failed.';
+  }
+
+  if (uniqueMessages.length === 1) {
+    return uniqueMessages[0]!;
+  }
+
+  return `${uniqueMessages.length} import batches failed. First failure: ${uniqueMessages[0]}`;
+}
+
+function getGuardrailFindings(error: unknown): AiGuardrailFinding[] {
+  const details = (error as { details?: unknown } | null)?.details;
+  if (!details || typeof details !== 'object') {
+    return [];
+  }
+
+  const findings = (details as { findings?: unknown }).findings;
+  if (!Array.isArray(findings)) {
+    return [];
+  }
+
+  return findings.filter(isGuardrailFinding);
+}
+
+function isGuardrailFinding(value: unknown): value is AiGuardrailFinding {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.stage === 'string' &&
+    typeof record.ruleId === 'string' &&
+    typeof record.severity === 'string' &&
+    typeof record.decision === 'string' &&
+    typeof record.message === 'string'
+  );
 }

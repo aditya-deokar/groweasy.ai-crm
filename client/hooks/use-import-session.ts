@@ -1,15 +1,15 @@
-"use client";
+"use client"
 
 import {
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
-} from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { ApiClientError } from "@/lib/api-client";
+} from "@tanstack/react-query"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useMemo } from "react"
+import { toast } from "sonner"
+import { ApiClientError } from "@/lib/api-client"
 import {
   cancelImport,
   confirmImport,
@@ -19,28 +19,30 @@ import {
   retryFailedImport,
   updateImportedRecord,
   reimportSkippedRecord,
-} from "@/lib/imports/api";
+} from "@/lib/imports/api"
 import type {
   ImportEvent,
   ImportPreview,
   ImportStatus,
   GrowEasyCrmRecord,
-} from "@/lib/imports/contracts";
-import { importQueryKeys } from "@/lib/imports/query-keys";
+  ImportBatch,
+} from "@/lib/imports/contracts"
+import { importQueryKeys } from "@/lib/imports/query-keys"
 import {
   clearCachedPreview,
   readCachedPreview,
   writeCachedPreview,
-} from "@/lib/imports/storage";
+} from "@/lib/imports/storage"
 import {
   downloadImportedRecordsCsv,
   downloadSampleCsvTemplate,
   downloadSkippedRecordsCsv,
-} from "@/lib/imports/export";
-import { useCsvParser, type LocalCsvPreview } from "@/hooks/use-csv-parser";
+} from "@/lib/imports/export"
+import { useCsvParser, type LocalCsvPreview } from "@/hooks/use-csv-parser"
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
+const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"])
+const GENERIC_IMPORT_BATCH_FAILURE = "One or more import batches failed."
 
 export type ImportSessionStep =
   | "idle"
@@ -49,45 +51,40 @@ export type ImportSessionStep =
   | "processing"
   | "completed"
   | "failed"
-  | "cancelled";
+  | "cancelled"
 
 export function useImportSession() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const queryClient = useQueryClient()
 
-  const importId = searchParams.get("importId");
-  const [cachedPreview, setCachedPreview] = useState<ImportPreview | null>(null);
+  const importId = searchParams.get("importId")
 
-  const csvParser = useCsvParser();
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCachedPreview(importId ? readCachedPreview(importId) : null);
-  }, [importId]);
+  const csvParser = useCsvParser()
 
   const previewMutation = useMutation({
     mutationFn: previewImport,
     onSuccess: (preview) => {
-      writeCachedPreview(preview);
-      setCachedPreview(preview);
-      setImportIdInUrl(preview.importId);
-      csvParser.clearLocalPreview();
-      toast.success("CSV preview is ready.");
+      writeCachedPreview(preview)
+      setImportIdInUrl(preview.importId)
+      csvParser.clearLocalPreview()
+      toast.success("CSV validated and ready for import.")
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to preview CSV file."));
+      toast.error(getErrorMessage(error, "Failed to preview CSV file."))
     },
-  });
+  })
 
   const statusQuery = useQuery({
-    queryKey: importId ? importQueryKeys.status(importId) : [...importQueryKeys.all, "status-idle"],
+    queryKey: importId
+      ? importQueryKeys.status(importId)
+      : [...importQueryKeys.all, "status-idle"],
     queryFn: () => getImportStatus(importId as string),
     enabled: Boolean(importId),
     refetchInterval: (query) =>
       query.state.data?.status === "PROCESSING" ? 2_000 : false,
-  });
+  })
 
   const resultQuery = useInfiniteQuery({
     queryKey: importId
@@ -102,166 +99,233 @@ export function useImportSession() {
       }),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (lastPage) =>
-      lastPage.pageInfo.hasMore ? (lastPage.pageInfo.nextCursor ?? undefined) : undefined,
-    enabled: Boolean(importId && statusQuery.data && TERMINAL_STATUSES.has(statusQuery.data.status)),
-  });
+      lastPage.pageInfo.hasMore
+        ? (lastPage.pageInfo.nextCursor ?? undefined)
+        : undefined,
+    enabled: Boolean(
+      importId &&
+      statusQuery.data &&
+      TERMINAL_STATUSES.has(statusQuery.data.status)
+    ),
+  })
 
   const confirmMutation = useMutation({
     mutationFn: (targetImportId: string) => confirmImport(targetImportId),
     onSuccess: (status) => {
-      queryClient.setQueryData(importQueryKeys.status(status.importId), status);
-      queryClient.invalidateQueries({ queryKey: importQueryKeys.detail(status.importId) });
+      queryClient.setQueryData(importQueryKeys.status(status.importId), status)
+      queryClient.invalidateQueries({
+        queryKey: importQueryKeys.detail(status.importId),
+      })
       toast.success(
-        status.status === "COMPLETED" ? "Import completed." : "Import processing started."
-      );
+        status.status === "COMPLETED"
+          ? "Import completed."
+          : "Import processing started."
+      )
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to confirm import."));
+      toast.error(getErrorMessage(error, "Failed to confirm import."))
     },
-  });
+  })
 
   const retryMutation = useMutation({
     mutationFn: (targetImportId: string) => retryFailedImport(targetImportId),
     onSuccess: (status) => {
-      queryClient.setQueryData(importQueryKeys.status(status.importId), status);
-      queryClient.invalidateQueries({ queryKey: importQueryKeys.detail(status.importId) });
-      toast.success("Retry started for failed batches.");
+      queryClient.setQueryData(importQueryKeys.status(status.importId), status)
+      queryClient.invalidateQueries({
+        queryKey: importQueryKeys.detail(status.importId),
+      })
+      toast.success("Retry started for failed batches.")
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to retry failed batches."));
+      toast.error(getErrorMessage(error, "Failed to retry failed batches."))
     },
-  });
+  })
 
   const cancelMutation = useMutation({
     mutationFn: (targetImportId: string) => cancelImport(targetImportId),
     onSuccess: (status) => {
-      queryClient.setQueryData(importQueryKeys.status(status.importId), status);
-      queryClient.invalidateQueries({ queryKey: importQueryKeys.detail(status.importId) });
-      toast.success("Import cancelled.");
+      queryClient.setQueryData(importQueryKeys.status(status.importId), status)
+      queryClient.invalidateQueries({
+        queryKey: importQueryKeys.detail(status.importId),
+      })
+      toast.success("Import cancelled.")
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to cancel import."));
+      toast.error(getErrorMessage(error, "Failed to cancel import."))
     },
-  });
+  })
 
   const updateRecordMutation = useMutation({
-    mutationFn: ({ targetImportId, rowIndex, record }: { targetImportId: string; rowIndex: number; record: Partial<GrowEasyCrmRecord> }) =>
-      updateImportedRecord(targetImportId, rowIndex, record),
+    mutationFn: ({
+      targetImportId,
+      rowIndex,
+      record,
+    }: {
+      targetImportId: string
+      rowIndex: number
+      record: Partial<GrowEasyCrmRecord>
+    }) => updateImportedRecord(targetImportId, rowIndex, record),
     onSuccess: (_, { targetImportId }) => {
-      queryClient.invalidateQueries({ queryKey: importQueryKeys.result(targetImportId, true) });
-      toast.success("Record updated successfully.");
+      queryClient.invalidateQueries({
+        queryKey: importQueryKeys.result(targetImportId, true),
+      })
+      toast.success("Record updated successfully.")
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to update record."));
+      toast.error(getErrorMessage(error, "Failed to update record."))
     },
-  });
+  })
 
   const reimportSkippedMutation = useMutation({
-    mutationFn: ({ targetImportId, rowIndex, newRawData }: { targetImportId: string; rowIndex: number; newRawData: Record<string, string> }) =>
-      reimportSkippedRecord(targetImportId, rowIndex, newRawData),
+    mutationFn: ({
+      targetImportId,
+      rowIndex,
+      newRawData,
+    }: {
+      targetImportId: string
+      rowIndex: number
+      newRawData: Record<string, string>
+    }) => reimportSkippedRecord(targetImportId, rowIndex, newRawData),
     onSuccess: (_, { targetImportId }) => {
-      queryClient.invalidateQueries({ queryKey: importQueryKeys.detail(targetImportId) });
-      toast.success("Record corrected and re-imported successfully.");
+      queryClient.invalidateQueries({
+        queryKey: importQueryKeys.detail(targetImportId),
+      })
+      toast.success("Record corrected and re-imported successfully.")
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to correct and re-import record."));
+      toast.error(
+        getErrorMessage(error, "Failed to correct and re-import record.")
+      )
     },
-  });
+  })
 
-  const preview = previewMutation.data ?? cachedPreview;
-  const status = statusQuery.data ?? deriveStatusFromPreview(preview);
-  const resultPages = resultQuery.data?.pages ?? [];
-  const firstResultPage = resultPages[0] ?? null;
+  const cachedPreview = useMemo(
+    () => (importId ? readCachedPreview(importId) : null),
+    [importId]
+  )
+  const preview = previewMutation.data ?? cachedPreview
+  const status = statusQuery.data ?? deriveStatusFromPreview(preview)
+  const resultPages = useMemo(
+    () => resultQuery.data?.pages ?? [],
+    [resultQuery.data?.pages]
+  )
+  const firstResultPage = resultPages[0] ?? null
 
   const records = useMemo(
     () => resultPages.flatMap((page) => page.records),
     [resultPages]
-  );
+  )
   const skippedRecords = useMemo(
     () => resultPages.flatMap((page) => page.skippedRecords),
     [resultPages]
-  );
-  const batches = firstResultPage?.batches ?? [];
-  const events = mergeEvents(status?.recentEvents ?? [], firstResultPage?.events ?? []);
-  const previewUnavailable = Boolean(importId && status?.status === "PARSED" && !preview);
+  )
+  const batches = useMemo(
+    () => firstResultPage?.batches ?? [],
+    [firstResultPage?.batches]
+  )
+  const events = mergeEvents(
+    status?.recentEvents ?? [],
+    firstResultPage?.events ?? []
+  )
+  const previewUnavailable = Boolean(
+    importId && status?.status === "PARSED" && !preview
+  )
+  const importFailureMessage = useMemo(
+    () => getImportFailureMessage(status?.error ?? null, batches),
+    [status?.error, batches]
+  )
 
-  const step = deriveSessionStep(status?.status ?? null, preview, csvParser.localPreview);
+  const step = deriveSessionStep(
+    status?.status ?? null,
+    preview,
+    csvParser.localPreview
+  )
 
   function handleFileUpload(file: File) {
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      toast.error("Only CSV files are supported.");
-      return;
+      toast.error("Only CSV files are supported.")
+      return
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      toast.error("The selected file is larger than 5 MB.");
-      return;
+      toast.error("The selected file is larger than 5 MB.")
+      return
     }
 
-    csvParser.parseCsvFile(file);
+    csvParser.parseCsvFile(file)
   }
 
+  // No more auto-upload! The user must explicitly click "Upload & Validate"
   function handleUploadToServer() {
     if (!csvParser.localPreview) {
-      toast.error("No CSV file parsed locally. Please upload a file first.");
-      return;
+      toast.error("No CSV file parsed locally. Please upload a file first.")
+      return
     }
 
-    previewMutation.mutate(csvParser.localPreview.file);
+    previewMutation.mutate(csvParser.localPreview.file)
   }
 
   function handleConfirmImport() {
     if (!importId) {
-      toast.error("Upload a CSV file before confirming the import.");
-      return;
+      toast.error("Upload a CSV file before confirming the import.")
+      return
     }
 
-    confirmMutation.mutate(importId);
+    confirmMutation.mutate(importId)
   }
 
   function handleRetryFailed() {
     if (!importId) {
-      return;
+      return
     }
 
-    retryMutation.mutate(importId);
+    retryMutation.mutate(importId)
   }
 
   function handleCancelImport() {
     if (!importId) {
-      return;
+      return
     }
 
-    cancelMutation.mutate(importId);
+    cancelMutation.mutate(importId)
   }
 
   function handleResetImport() {
     if (importId) {
-      clearCachedPreview(importId);
-      queryClient.removeQueries({ queryKey: importQueryKeys.detail(importId) });
+      clearCachedPreview(importId)
+      queryClient.removeQueries({ queryKey: importQueryKeys.detail(importId) })
     }
 
-    setCachedPreview(null);
-    csvParser.clearLocalPreview();
-    router.replace(pathname, { scroll: false });
+    csvParser.clearLocalPreview()
+    router.replace(pathname, { scroll: false })
   }
 
   function handleDownloadImported() {
-    downloadImportedRecordsCsv(records);
+    downloadImportedRecordsCsv(records)
   }
 
   function handleDownloadSkipped() {
-    downloadSkippedRecordsCsv(skippedRecords);
+    downloadSkippedRecordsCsv(skippedRecords)
   }
 
-  function handleUpdateRecord(rowIndex: number, record: Partial<GrowEasyCrmRecord>) {
-    if (!importId) return;
-    updateRecordMutation.mutate({ targetImportId: importId, rowIndex, record });
+  function handleUpdateRecord(
+    rowIndex: number,
+    record: Partial<GrowEasyCrmRecord>
+  ) {
+    if (!importId) return
+    updateRecordMutation.mutate({ targetImportId: importId, rowIndex, record })
   }
 
-  function handleReimportSkipped(rowIndex: number, newRawData: Record<string, string>) {
-    if (!importId) return;
-    reimportSkippedMutation.mutate({ targetImportId: importId, rowIndex, newRawData });
+  function handleReimportSkipped(
+    rowIndex: number,
+    newRawData: Record<string, string>
+  ) {
+    if (!importId) return
+    reimportSkippedMutation.mutate({
+      targetImportId: importId,
+      rowIndex,
+      newRawData,
+    })
   }
 
   return {
@@ -288,11 +352,15 @@ export function useImportSession() {
     isReimportingSkipped: reimportSkippedMutation.isPending,
     isLoadingMore: resultQuery.isFetchingNextPage,
     hasMoreResults: firstResultPage?.pageInfo.hasMore ?? false,
-    activeFileName: csvParser.localPreview?.fileName ?? preview?.file.originalName ?? previewMutation.variables?.name ?? null,
+    activeFileName:
+      csvParser.localPreview?.fileName ??
+      preview?.file.originalName ??
+      previewMutation.variables?.name ??
+      null,
     activeFileSize: csvParser.localPreview?.fileSize ?? null,
     latestError:
       csvParser.localParseError ??
-      status?.error ??
+      importFailureMessage ??
       getErrorMessage(
         previewMutation.error ??
           confirmMutation.error ??
@@ -314,18 +382,20 @@ export function useImportSession() {
     handleDownloadSample: downloadSampleCsvTemplate,
     handleUpdateRecord,
     handleReimportSkipped,
-  };
+  }
 
   function setImportIdInUrl(nextImportId: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("importId", nextImportId);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("importId", nextImportId)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
   }
 }
 
-function deriveStatusFromPreview(preview: ImportPreview | null): ImportStatus | null {
+function deriveStatusFromPreview(
+  preview: ImportPreview | null
+): ImportStatus | null {
   if (!preview) {
-    return null;
+    return null
   }
 
   return {
@@ -344,8 +414,17 @@ function deriveStatusFromPreview(preview: ImportPreview | null): ImportStatus | 
       skipped: preview.summary.skippedRowCount,
     },
     error: null,
+    aiSafety: {
+      promptVersion: null,
+      provider: null,
+      model: null,
+      blockedRows: 0,
+      warnedRows: 0,
+      outputRejectedBatches: 0,
+      safetyEvents: 0,
+    },
     recentEvents: [],
-  };
+  }
 }
 
 function deriveSessionStep(
@@ -355,47 +434,96 @@ function deriveSessionStep(
 ): ImportSessionStep {
   switch (status) {
     case "PROCESSING":
-      return "processing";
+      return "processing"
     case "COMPLETED":
-      return "completed";
+      return "completed"
     case "FAILED":
-      return "failed";
+      return "failed"
     case "CANCELLED":
-      return "cancelled";
+      return "cancelled"
     case "PARSED":
-      return "preview";
+      return "preview"
     default:
-      if (preview) return "preview";
-      if (localPreview) return "local-preview";
-      return "idle";
+      if (preview) return "preview"
+      if (localPreview) return "local-preview"
+      return "idle"
   }
 }
 
 function mergeEvents(statusEvents: ImportEvent[], resultEvents: ImportEvent[]) {
-  const seen = new Set<string>();
-  const merged: ImportEvent[] = [];
+  const seen = new Set<string>()
+  const merged: ImportEvent[] = []
 
   for (const event of [...statusEvents, ...resultEvents]) {
-    const key = `${event.createdAt}:${event.eventType}:${event.message}`;
+    const key = `${event.createdAt}:${event.eventType}:${event.message}`
     if (seen.has(key)) {
-      continue;
+      continue
     }
 
-    seen.add(key);
-    merged.push(event);
+    seen.add(key)
+    merged.push(event)
   }
 
-  return merged.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  return merged.sort((left, right) =>
+    right.createdAt.localeCompare(left.createdAt)
+  )
 }
 
 function getErrorMessage(error: unknown, fallback: string | null) {
   if (error instanceof ApiClientError) {
-    return error.message;
+    return error.message
   }
 
   if (error instanceof Error) {
-    return error.message;
+    return error.message
   }
 
-  return fallback;
+  return fallback
+}
+
+function getImportFailureMessage(
+  statusError: string | null,
+  batches: ImportBatch[]
+): string | null {
+  const normalizedStatusError = normalizeOptionalMessage(statusError)
+  const failedBatchErrors = getFailedBatchErrors(batches)
+
+  if (failedBatchErrors.length === 0) {
+    return normalizedStatusError
+  }
+
+  if (
+    !normalizedStatusError ||
+    normalizedStatusError === GENERIC_IMPORT_BATCH_FAILURE
+  ) {
+    return summarizeFailedBatchErrors(failedBatchErrors)
+  }
+
+  return normalizedStatusError
+}
+
+function getFailedBatchErrors(batches: ImportBatch[]): string[] {
+  return Array.from(
+    new Set(
+      batches
+        .filter((batch) => batch.status === "FAILED")
+        .map((batch) => normalizeOptionalMessage(batch.errorMessage))
+        .filter((message): message is string => Boolean(message))
+    )
+  )
+}
+
+function summarizeFailedBatchErrors(failedBatchErrors: string[]): string {
+  if (failedBatchErrors.length === 1) {
+    return failedBatchErrors[0]!
+  }
+
+  return `${failedBatchErrors.length} import batches failed. First failure: ${failedBatchErrors[0]}`
+}
+
+function normalizeOptionalMessage(
+  message: string | null | undefined
+): string | null {
+  const normalizedMessage = message?.trim()
+  return normalizedMessage ? normalizedMessage : null
 }

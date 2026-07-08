@@ -102,6 +102,14 @@ export class CircuitBreaker {
     }
   }
 
+  public reset(): void {
+    this.stateValue = 'CLOSED';
+    this.failures = 0;
+    this.lastFailureAt = null;
+    this.halfOpenAttempts = 0;
+    this.halfOpenSuccesses = 0;
+  }
+
   public async execute<T>(operation: () => Promise<T>): Promise<T> {
     if (!this.allowRequest()) {
       throw new CircuitBreakerOpenError();
@@ -141,14 +149,6 @@ export class CircuitBreaker {
 
   private open(): void {
     this.stateValue = 'OPEN';
-    this.halfOpenAttempts = 0;
-    this.halfOpenSuccesses = 0;
-  }
-
-  private reset(): void {
-    this.stateValue = 'CLOSED';
-    this.failures = 0;
-    this.lastFailureAt = null;
     this.halfOpenAttempts = 0;
     this.halfOpenSuccesses = 0;
   }

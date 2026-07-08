@@ -5,53 +5,54 @@ import { GeminiCrmExtractor } from '../../../src/modules/imports/infrastructure/
 
 describe('GeminiCrmExtractor', () => {
   it('calls Gemini generateContent API and validates structured output', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          candidates: [
-            {
-              content: {
-                parts: [
-                  {
-                    text: JSON.stringify({
-                      rows: [
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
               {
-                rowIndex: 1,
-                action: 'IMPORT',
-                skipReason: null,
-                record: {
-                  created_at: '2026-07-08',
-                  name: 'John Doe',
-                  email: 'JOHN@EXAMPLE.COM',
-                  country_code: '+91',
-                  mobile_without_country_code: '98765 43210',
-                  company: null,
-                  city: null,
-                  state: null,
-                  country: null,
-                  lead_owner: null,
-                  crm_status: 'GOOD_LEAD_FOLLOW_UP',
-                  crm_note: null,
-                  data_source: null,
-                  possession_time: null,
-                  description: null,
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        rows: [
+                          {
+                            rowIndex: 1,
+                            action: 'IMPORT',
+                            skipReason: null,
+                            record: {
+                              created_at: '2026-07-08',
+                              name: 'John Doe',
+                              email: 'JOHN@EXAMPLE.COM',
+                              country_code: '+91',
+                              mobile_without_country_code: '98765 43210',
+                              company: null,
+                              city: null,
+                              state: null,
+                              country: null,
+                              lead_owner: null,
+                              crm_status: 'GOOD_LEAD_FOLLOW_UP',
+                              crm_note: null,
+                              data_source: null,
+                              possession_time: null,
+                              description: null,
+                            },
+                          },
+                        ],
+                      }),
+                    },
+                  ],
                 },
               },
             ],
-                    }),
-                  },
-                ],
-              },
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
             },
-          ],
-        }),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      )
+          }
+        )
     );
     const extractor = new GeminiCrmExtractor(createEnv(), fetchMock as unknown as typeof fetch);
 
@@ -112,6 +113,50 @@ describe('GeminiCrmExtractor', () => {
       })
     ).rejects.toThrow(AiProviderUnavailableError);
   });
+
+  it('surfaces Gemini provider error messages for failed requests', async () => {
+    const providerMessage =
+      'This model is currently experiencing high demand. Please try again later.';
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 503,
+              message: providerMessage,
+              status: 'UNAVAILABLE',
+            },
+          }),
+          {
+            status: 503,
+            statusText: 'Service Unavailable',
+          }
+        )
+    );
+    const extractor = new GeminiCrmExtractor(createEnv(), fetchMock as unknown as typeof fetch);
+
+    await expect(
+      extractor.extractBatch({
+        importId: 'import-1',
+        headers: ['Name'],
+        rows: [
+          {
+            rowIndex: 1,
+            rawData: {
+              Name: 'John Doe',
+            },
+          },
+        ],
+      })
+    ).rejects.toMatchObject({
+      message: `Gemini extraction request failed: ${providerMessage}`,
+      details: expect.objectContaining({
+        provider: 'gemini',
+        status: 503,
+        providerMessage,
+      }),
+    });
+  });
 });
 
 function createEnv(): Env {
@@ -121,5 +166,6 @@ function createEnv(): Env {
     geminiModel: 'gemini-3.5-flash',
     defaultPhoneRegion: 'IN',
     aiTemperature: 0,
+    aiProviderTimeoutMs: 30_000,
   } as Env;
 }
