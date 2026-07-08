@@ -3,7 +3,10 @@ import {
   parseImportPreview,
   parseImportResult,
   parseImportStatus,
+  parseImportHistory,
   type ImportResult,
+  type GrowEasyCrmRecord,
+  type ImportHistoryResponse,
 } from "@/lib/imports/contracts";
 
 export async function previewImport(file: File) {
@@ -62,5 +65,39 @@ export async function cancelImport(importId: string) {
   return apiRequest(`/imports/${importId}/cancel`, {
     method: "POST",
     parse: parseImportStatus,
+  });
+}
+
+export async function updateImportedRecord(importId: string, rowIndex: number, record: Partial<GrowEasyCrmRecord>) {
+  return apiRequest(`/imports/${importId}/records/${rowIndex}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(record),
+    parse: (data) => data as unknown,
+  });
+}
+
+export async function reimportSkippedRecord(importId: string, rowIndex: number, newRawData: Record<string, string>) {
+  return apiRequest(`/imports/${importId}/skipped/${rowIndex}/reimport`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ newRawData }),
+    parse: (data) => data as unknown,
+  });
+}
+
+export async function getImportHistory(cursor?: number, limit = 20): Promise<ImportHistoryResponse> {
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  if (cursor !== undefined) {
+    params.set("cursor", cursor.toString());
+  }
+  return apiRequest(`/imports/history?${params.toString()}`, {
+    method: "GET",
+    parse: parseImportHistory,
   });
 }

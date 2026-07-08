@@ -5,6 +5,9 @@ import { CreateImportPreviewUseCase } from './application/use-cases/create-impor
 import { ConfirmImportUseCase } from './application/use-cases/confirm-import.use-case.js';
 import { GetImportStatusUseCase } from './application/use-cases/get-import-status.use-case.js';
 import { GetImportResultUseCase } from './application/use-cases/get-import-result.use-case.js';
+import { UpdateImportRecordUseCase } from './application/use-cases/update-import-record.use-case.js';
+import { ReimportSkippedRecordUseCase } from './application/use-cases/reimport-skipped-record.use-case.js';
+import { GetImportHistoryUseCase } from './application/use-cases/get-import-history.use-case.js';
 import { RetryFailedBatchesUseCase } from './application/use-cases/retry-failed-batches.use-case.js';
 import { CancelImportUseCase } from './application/use-cases/cancel-import.use-case.js';
 import { ImportProcessor } from './application/services/import-processor.js';
@@ -32,8 +35,11 @@ export interface ImportsModuleContainer {
   useCases: {
     createImportPreview: CreateImportPreviewUseCase;
     confirmImport: ConfirmImportUseCase;
+    getImportHistory: GetImportHistoryUseCase;
     getImportStatus: GetImportStatusUseCase;
     getImportResult: GetImportResultUseCase;
+    updateImportRecord: UpdateImportRecordUseCase;
+    reimportSkippedRecord: ReimportSkippedRecordUseCase;
     retryFailedBatches: RetryFailedBatchesUseCase;
     cancelImport: CancelImportUseCase;
   };
@@ -49,15 +55,21 @@ export function createImportsContainer(input: ImportsContainerInput): ImportsMod
   const processor = new ImportProcessor(workflow, input.logger);
   const createImportPreview = new CreateImportPreviewUseCase(csvParser, repository, input.config);
   const confirmImport = new ConfirmImportUseCase(repository, processor, input.config);
+  const getImportHistory = new GetImportHistoryUseCase(repository);
   const getImportStatus = new GetImportStatusUseCase(repository);
   const getImportResult = new GetImportResultUseCase(repository);
+  const updateImportRecord = new UpdateImportRecordUseCase(repository);
+  const reimportSkippedRecord = new ReimportSkippedRecordUseCase(repository, aiExtractor);
   const retryFailedBatches = new RetryFailedBatchesUseCase(repository, processor);
   const cancelImport = new CancelImportUseCase(repository);
   const controller = new ImportsController(
     createImportPreview,
     confirmImport,
+    getImportHistory,
     getImportStatus,
     getImportResult,
+    updateImportRecord,
+    reimportSkippedRecord,
     retryFailedBatches,
     cancelImport
   );
@@ -72,8 +84,11 @@ export function createImportsContainer(input: ImportsContainerInput): ImportsMod
     useCases: {
       createImportPreview,
       confirmImport,
+      getImportHistory,
       getImportStatus,
       getImportResult,
+      updateImportRecord,
+      reimportSkippedRecord,
       retryFailedBatches,
       cancelImport,
     },

@@ -17,11 +17,14 @@ import {
   getImportStatus,
   previewImport,
   retryFailedImport,
+  updateImportedRecord,
+  reimportSkippedRecord,
 } from "@/lib/imports/api";
 import type {
   ImportEvent,
   ImportPreview,
   ImportStatus,
+  GrowEasyCrmRecord,
 } from "@/lib/imports/contracts";
 import { importQueryKeys } from "@/lib/imports/query-keys";
 import {
@@ -34,12 +37,14 @@ import {
   downloadSampleCsvTemplate,
   downloadSkippedRecordsCsv,
 } from "@/lib/imports/export";
+import { useCsvParser, type LocalCsvPreview } from "@/hooks/use-csv-parser";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
 export type ImportSessionStep =
   | "idle"
+  | "local-preview"
   | "preview"
   | "processing"
   | "completed"
@@ -55,7 +60,10 @@ export function useImportSession() {
   const importId = searchParams.get("importId");
   const [cachedPreview, setCachedPreview] = useState<ImportPreview | null>(null);
 
+  const csvParser = useCsvParser();
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCachedPreview(importId ? readCachedPreview(importId) : null);
   }, [importId]);
 
@@ -65,6 +73,7 @@ export function useImportSession() {
       writeCachedPreview(preview);
       setCachedPreview(preview);
       setImportIdInUrl(preview.importId);
+      csvParser.clearLocalPreview();
       toast.success("CSV preview is ready.");
     },
     onError: (error) => {
@@ -135,6 +144,30 @@ export function useImportSession() {
     },
   });
 
+  const updateRecordMutation = useMutation({
+    mutationFn: ({ targetImportId, rowIndex, record }: { targetImportId: string; rowIndex: number; record: Partial<GrowEasyCrmRecord> }) =>
+      updateImportedRecord(targetImportId, rowIndex, record),
+    onSuccess: (_, { targetImportId }) => {
+      queryClient.invalidateQueries({ queryKey: importQueryKeys.result(targetImportId, true) });
+      toast.success("Record updated successfully.");
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update record."));
+    },
+  });
+
+  const reimportSkippedMutation = useMutation({
+    mutationFn: ({ targetImportId, rowIndex, newRawData }: { targetImportId: string; rowIndex: number; newRawData: Record<string, string> }) =>
+      reimportSkippedRecord(targetImportId, rowIndex, newRawData),
+    onSuccess: (_, { targetImportId }) => {
+      queryClient.invalidateQueries({ queryKey: importQueryKeys.detail(targetImportId) });
+      toast.success("Record corrected and re-imported successfully.");
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to correct and re-import record."));
+    },
+  });
+
   const preview = previewMutation.data ?? cachedPreview;
   const status = statusQuery.data ?? deriveStatusFromPreview(preview);
   const resultPages = resultQuery.data?.pages ?? [];
@@ -152,7 +185,7 @@ export function useImportSession() {
   const events = mergeEvents(status?.recentEvents ?? [], firstResultPage?.events ?? []);
   const previewUnavailable = Boolean(importId && status?.status === "PARSED" && !preview);
 
-  const step = deriveSessionStep(status?.status ?? null, preview);
+  const step = deriveSessionStep(status?.status ?? null, preview, csvParser.localPreview);
 
   function handleFileUpload(file: File) {
     if (!file.name.toLowerCase().endsWith(".csv")) {
@@ -165,7 +198,16 @@ export function useImportSession() {
       return;
     }
 
-    previewMutation.mutate(file);
+    csvParser.parseCsvFile(file);
+  }
+
+  function handleUploadToServer() {
+    if (!csvParser.localPreview) {
+      toast.error("No CSV file parsed locally. Please upload a file first.");
+      return;
+    }
+
+    previewMutation.mutate(csvParser.localPreview.file);
   }
 
   function handleConfirmImport() {
@@ -200,6 +242,7 @@ export function useImportSession() {
     }
 
     setCachedPreview(null);
+    csvParser.clearLocalPreview();
     router.replace(pathname, { scroll: false });
   }
 
@@ -209,6 +252,16 @@ export function useImportSession() {
 
   function handleDownloadSkipped() {
     downloadSkippedRecordsCsv(skippedRecords);
+  }
+
+  function handleUpdateRecord(rowIndex: number, record: Partial<GrowEasyCrmRecord>) {
+    if (!importId) return;
+    updateRecordMutation.mutate({ targetImportId: importId, rowIndex, record });
+  }
+
+  function handleReimportSkipped(rowIndex: number, newRawData: Record<string, string>) {
+    if (!importId) return;
+    reimportSkippedMutation.mutate({ targetImportId: importId, rowIndex, newRawData });
   }
 
   return {
@@ -222,16 +275,23 @@ export function useImportSession() {
     skippedRecords,
     batches,
     events,
+    localPreview: csvParser.localPreview,
+    isLocalParsing: csvParser.isLocalParsing,
+    localParseError: csvParser.localParseError,
     isPreviewLoading: previewMutation.isPending,
     isStatusLoading: statusQuery.isLoading,
     isResultLoading: resultQuery.isLoading,
     isConfirming: confirmMutation.isPending,
     isRetrying: retryMutation.isPending,
     isCancelling: cancelMutation.isPending,
+    isUpdatingRecord: updateRecordMutation.isPending,
+    isReimportingSkipped: reimportSkippedMutation.isPending,
     isLoadingMore: resultQuery.isFetchingNextPage,
     hasMoreResults: firstResultPage?.pageInfo.hasMore ?? false,
-    activeFileName: preview?.file.originalName ?? previewMutation.variables?.name ?? null,
+    activeFileName: csvParser.localPreview?.fileName ?? preview?.file.originalName ?? previewMutation.variables?.name ?? null,
+    activeFileSize: csvParser.localPreview?.fileSize ?? null,
     latestError:
+      csvParser.localParseError ??
       status?.error ??
       getErrorMessage(
         previewMutation.error ??
@@ -243,6 +303,7 @@ export function useImportSession() {
         null
       ),
     handleFileUpload,
+    handleUploadToServer,
     handleConfirmImport,
     handleRetryFailed,
     handleCancelImport,
@@ -251,6 +312,8 @@ export function useImportSession() {
     handleDownloadImported,
     handleDownloadSkipped,
     handleDownloadSample: downloadSampleCsvTemplate,
+    handleUpdateRecord,
+    handleReimportSkipped,
   };
 
   function setImportIdInUrl(nextImportId: string) {
@@ -285,7 +348,11 @@ function deriveStatusFromPreview(preview: ImportPreview | null): ImportStatus | 
   };
 }
 
-function deriveSessionStep(status: string | null, preview: ImportPreview | null): ImportSessionStep {
+function deriveSessionStep(
+  status: string | null,
+  preview: ImportPreview | null,
+  localPreview: LocalCsvPreview | null
+): ImportSessionStep {
   switch (status) {
     case "PROCESSING":
       return "processing";
@@ -298,7 +365,9 @@ function deriveSessionStep(status: string | null, preview: ImportPreview | null)
     case "PARSED":
       return "preview";
     default:
-      return preview ? "preview" : "idle";
+      if (preview) return "preview";
+      if (localPreview) return "local-preview";
+      return "idle";
   }
 }
 

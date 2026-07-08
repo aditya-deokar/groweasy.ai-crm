@@ -4,7 +4,7 @@ import { asyncHandler } from '../../../shared/infrastructure/http/async-handler.
 import { validateRequest } from '../../../shared/presentation/middlewares/validate-request.middleware.js';
 import { createCsvUploadMiddleware } from '../infrastructure/upload/multer-upload.middleware.js';
 import type { ImportsController } from './imports.controller.js';
-import { importIdParamsSchema, importResultQuerySchema } from './imports.schemas.js';
+import { importIdParamsSchema, importResultQuerySchema, importHistoryQuerySchema, importRowParamsSchema } from './imports.schemas.js';
 
 export function createImportsRouter(controller: ImportsController, config: Env): Router {
   const router = Router();
@@ -13,6 +13,11 @@ export function createImportsRouter(controller: ImportsController, config: Env):
     '/preview',
     createCsvUploadMiddleware(config),
     asyncHandler((req, res) => controller.preview(req, res))
+  );
+  router.get(
+    '/history',
+    validateRequest({ query: importHistoryQuerySchema }),
+    asyncHandler((req, res) => controller.history(req, res))
   );
   router.post(
     '/:importId/confirm',
@@ -38,6 +43,16 @@ export function createImportsRouter(controller: ImportsController, config: Env):
     '/:importId/cancel',
     validateRequest({ params: importIdParamsSchema }),
     asyncHandler((req, res) => controller.cancel(req, res))
+  );
+  router.patch(
+    '/:importId/records/:rowIndex',
+    validateRequest({ params: importRowParamsSchema }),
+    asyncHandler((req, res) => controller.updateRecord(req, res))
+  );
+  router.post(
+    '/:importId/skipped/:rowIndex/reimport',
+    validateRequest({ params: importRowParamsSchema }),
+    asyncHandler((req, res) => controller.reimportSkipped(req, res))
   );
 
   return router;

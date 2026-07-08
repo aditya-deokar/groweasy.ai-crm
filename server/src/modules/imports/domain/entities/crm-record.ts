@@ -17,9 +17,11 @@ export interface CrmRecord {
   data_source: DataSource | null;
   possession_time: string | null;
   description: string | null;
+  confidence: Record<string, number> | null;
 }
 
 export interface CrmRecordWithRow {
   rowIndex: number;
   record: CrmRecord;
 }
+

@@ -9,14 +9,22 @@ interface UploadZoneProps {
   onUpload: (file: File) => void;
   onDownloadSample: () => void;
   activeFileName?: string | null;
+  activeFileSize?: number | null;
   isUploading?: boolean;
   disabled?: boolean;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function UploadZone({
   onUpload,
   onDownloadSample,
   activeFileName,
+  activeFileSize,
   isUploading = false,
   disabled = false,
 }: UploadZoneProps) {
@@ -27,6 +35,19 @@ export function UploadZone({
       }
     },
     [disabled, onUpload]
+  );
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const input = document.getElementById("file-upload-input");
+        if (input) {
+          input.click();
+        }
+      }
+    },
+    []
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -49,7 +70,11 @@ export function UploadZone({
 
       <div
         {...getRootProps()}
-        className={`w-full max-w-xl rounded-xl border-2 border-dashed p-10 transition-colors ${
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-label="Upload CSV file by dropping or clicking"
+        onKeyDown={onKeyDown}
+        className={`w-full max-w-xl rounded-xl border-2 border-dashed p-10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${
           disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"
         } ${
           isDragActive
@@ -57,7 +82,7 @@ export function UploadZone({
             : "border-border hover:border-green-600 hover:bg-muted/50"
         }`}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} id="file-upload-input" />
         <div className="flex flex-col items-center justify-center space-y-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-lg border bg-card shadow-sm">
             {isUploading ? (
@@ -80,7 +105,13 @@ export function UploadZone({
             ) : activeFileName ? (
               <>
                 <p className="font-semibold text-foreground">{activeFileName}</p>
-                <p className="text-muted-foreground">Preview fetched from the backend.</p>
+                {activeFileSize != null && activeFileSize > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {formatFileSize(activeFileSize)} — ready for preview
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">Preview fetched from the backend.</p>
+                )}
               </>
             ) : (
               <>
@@ -115,3 +146,4 @@ export function UploadZone({
     </div>
   );
 }
+

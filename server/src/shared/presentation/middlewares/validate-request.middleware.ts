@@ -11,6 +11,7 @@ export type RequestValidationSchemas = Partial<Record<RequestValidationTarget, Z
 type ValidatedRequestData = Partial<Record<RequestValidationTarget, unknown>>;
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       validated?: ValidatedRequestData;

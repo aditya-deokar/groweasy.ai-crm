@@ -5,7 +5,7 @@ import { isCrmStatus } from '../constants/crm-status.js';
 import type { DataSource } from '../constants/data-source.js';
 import { isDataSource } from '../constants/data-source.js';
 
-export interface NormalizableCrmRecord extends Omit<CrmRecord, 'crm_status' | 'data_source'> {
+export interface NormalizableCrmRecord extends Omit<CrmRecord, 'crm_status' | 'data_source' | 'confidence'> {
   crm_status: string | null;
   data_source: string | null;
 }
@@ -91,6 +91,7 @@ export function normalizeCrmRecord(
     data_source: normalizeDataSource(record.data_source),
     possession_time: normalizeNullableText(record.possession_time),
     description: normalizeNullableText(record.description),
+    confidence: {},
   };
 
   return normalized;

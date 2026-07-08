@@ -12,7 +12,8 @@ import {
   LayoutList,
   Wifi,
   Briefcase,
-  ChevronRight
+  ChevronRight,
+  History
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ const mainNavItems = [
 const controlCenterItems = [
   { title: "Team Members", href: "#", icon: Users },
   { title: "Lead Sources", href: "/import", icon: Megaphone, isActive: true },
+  { title: "Import History", href: "/import/history", icon: History },
   { title: "Ad Accounts", href: "#", icon: UserPlus },
   { title: "WhatsApp Account", href: "#", icon: MessageCircle },
   { title: "Tele Calling", href: "#", icon: PhoneCall },

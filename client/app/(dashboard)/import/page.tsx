@@ -1,7 +1,12 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { AlertTriangle, FileSpreadsheet, LoaderCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  FileSpreadsheet,
+  LoaderCircle,
+  Upload,
+} from "lucide-react";
 import { BatchesTable } from "@/components/import/batches-table";
 import { CsvPreviewTable } from "@/components/import/csv-preview-table";
 import { DownloadActions } from "@/components/import/download-actions";
@@ -10,6 +15,7 @@ import {
   ImportSummary,
   type ImportSummaryCard,
 } from "@/components/import/import-summary";
+import { LocalCsvPreviewTable } from "@/components/import/local-csv-preview-table";
 import { ParsedRecordsTable } from "@/components/import/parsed-records-table";
 import { ProcessingProgress } from "@/components/import/processing-progress";
 import { SkippedRecordsTable } from "@/components/import/skipped-records-table";
@@ -31,6 +37,24 @@ export default function ImportPage() {
 function ImportPageContent() {
   const [activeTab, setActiveTab] = useState("records");
   const session = useImportSession();
+
+  const localPreviewCards: ImportSummaryCard[] = session.localPreview
+    ? [
+        { id: "file", label: "File Name", value: session.localPreview.fileName },
+        { id: "total", label: "Total Rows", value: session.localPreview.totalRows },
+        {
+          id: "columns",
+          label: "Total Columns",
+          value: session.localPreview.totalColumns,
+        },
+        {
+          id: "ready",
+          label: "Ready to Import",
+          value: "✓",
+          tone: "success",
+        },
+      ]
+    : [];
 
   const previewCards: ImportSummaryCard[] = session.preview
     ? [
@@ -135,6 +159,25 @@ function ImportPageContent() {
             <Button variant="outline" onClick={session.handleResetImport}>
               Reset Session
             </Button>
+            {session.step === "local-preview" ? (
+              <Button
+                onClick={session.handleUploadToServer}
+                disabled={session.isPreviewLoading || session.isLocalParsing}
+                className="bg-[#0D652D] text-white hover:bg-[#0A4D22]"
+              >
+                {session.isPreviewLoading ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload &amp; Validate
+                  </>
+                )}
+              </Button>
+            ) : null}
             {session.step === "preview" ? (
               <Button
                 onClick={session.handleConfirmImport}
@@ -173,6 +216,7 @@ function ImportPageContent() {
         ) : null}
       </div>
 
+      {/* ── IDLE: Upload Zone ── */}
       {session.step === "idle" ? (
         <Card className="mx-auto mt-12 max-w-2xl">
           <CardContent className="pt-6">
@@ -180,12 +224,71 @@ function ImportPageContent() {
               onUpload={session.handleFileUpload}
               onDownloadSample={session.handleDownloadSample}
               activeFileName={session.activeFileName}
-              isUploading={session.isPreviewLoading}
+              activeFileSize={session.activeFileSize}
+              isUploading={session.isLocalParsing}
             />
           </CardContent>
         </Card>
       ) : null}
 
+      {/* ── LOCAL PREVIEW: Client-side CSV parsed data ── */}
+      {session.step === "local-preview" && session.localPreview ? (
+        <div className="space-y-6">
+          <ImportSummary cards={localPreviewCards} />
+
+          {session.localParseError ? (
+            <Card className="border-red-200 bg-red-50/80">
+              <CardContent className="pt-6 text-sm text-red-900">
+                {session.localParseError}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-[#0D652D]" />
+                Local CSV preview for {session.localPreview.fileName}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                This is a client-side preview of your raw CSV data. Click{" "}
+                <strong>Upload &amp; Validate</strong> to send it to the server for
+                AI-powered processing.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <div className="text-xs uppercase tracking-wide">File Size</div>
+                  <div className="mt-2 font-medium text-foreground">
+                    {formatBytes(session.localPreview.fileSize)}
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <div className="text-xs uppercase tracking-wide">Preview Rows</div>
+                  <div className="mt-2 font-medium text-foreground">
+                    {Math.min(session.localPreview.rows.length, 200)} of{" "}
+                    {session.localPreview.totalRows}
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <div className="text-xs uppercase tracking-wide">Columns</div>
+                  <div className="mt-2 font-medium text-foreground">
+                    {session.localPreview.totalColumns}
+                  </div>
+                </div>
+              </div>
+
+              <LocalCsvPreviewTable
+                rows={session.localPreview.rows}
+                headers={session.localPreview.headers}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {/* ── SERVER PREVIEW: Backend-validated preview ── */}
       {session.step === "preview" ? (
         <div className="space-y-6">
           <ImportSummary cards={previewCards} />
@@ -241,6 +344,7 @@ function ImportPageContent() {
         </div>
       ) : null}
 
+      {/* ── PROCESSING: Live import progress ── */}
       {session.step === "processing" ? (
         <div className="space-y-6">
           <ImportSummary cards={progressCards} />
@@ -257,6 +361,7 @@ function ImportPageContent() {
         </div>
       ) : null}
 
+      {/* ── COMPLETED / FAILED / CANCELLED: Results ── */}
       {session.step === "completed" ||
       session.step === "failed" ||
       session.step === "cancelled" ? (
@@ -299,11 +404,19 @@ function ImportPageContent() {
               </TabsList>
 
               <TabsContent value="records" className="space-y-4">
-                <ParsedRecordsTable records={session.records} />
+                <ParsedRecordsTable 
+                  records={session.records} 
+                  onEditRecord={session.handleUpdateRecord}
+                  isUpdatingRecord={session.isUpdatingRecord}
+                />
               </TabsContent>
 
               <TabsContent value="skipped" className="space-y-4">
-                <SkippedRecordsTable records={session.skippedRecords} />
+                <SkippedRecordsTable 
+                  records={session.skippedRecords} 
+                  onReimportSkipped={session.handleReimportSkipped}
+                  isReimportingSkipped={session.isReimportingSkipped}
+                />
               </TabsContent>
             </Tabs>
           ) : null}

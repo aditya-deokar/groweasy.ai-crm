@@ -1,6 +1,6 @@
 import type { ImportFileMetadata, ImportPreview } from '../entities/import-job.js';
 import type { ImportRow, ImportRowSkipReason } from '../entities/import-row.js';
-import type { CrmRecordWithRow } from '../entities/crm-record.js';
+import type { CrmRecord, CrmRecordWithRow } from '../entities/crm-record.js';
 import type { ImportBatchStatus, ImportStatus } from '../constants/import-status.js';
 
 export interface CreateImportPreviewInput {
@@ -39,6 +39,10 @@ export interface ImportRepository {
   cancelJob(importId: string): Promise<void>;
   getStatus(importId: string): Promise<ImportStatusResult | null>;
   getResult(input: GetImportResultInput): Promise<ImportResult | null>;
+  updateImportedRecord(importId: string, rowIndex: number, record: Partial<CrmRecord>): Promise<void>;
+  getSkippedRecord(importId: string, rowIndex: number): Promise<{ rowIndex: number; reason: string; rawData: Record<string, string>; importRowId: string } | null>;
+  reimportSkippedRecord(importId: string, importRowId: string, rowIndex: number, record: CrmRecord): Promise<void>;
+  getHistory(limit: number, cursor?: number): Promise<{ jobs: ImportJobSummary[]; nextCursor: number | null; hasMore: boolean }>;
 }
 
 export interface ImportJobSummary {
@@ -51,6 +55,7 @@ export interface ImportJobSummary {
   importedCount: number;
   skippedCount: number;
   errorMessage: string | null;
+  createdAt: Date;
 }
 
 export interface ImportBatchSummary {

@@ -751,6 +751,110 @@ export class DrizzleImportRepository implements ImportRepository {
       },
     };
   }
+
+  public async updateImportedRecord(importId: string, rowIndex: number, record: Partial<CrmRecord>): Promise<void> {
+    const updateData: Record<string, any> = {};
+    if (record.created_at !== undefined) updateData.createdAtValue = record.created_at;
+    if (record.name !== undefined) updateData.name = record.name;
+    if (record.email !== undefined) updateData.email = record.email;
+    if (record.country_code !== undefined) updateData.countryCode = record.country_code;
+    if (record.mobile_without_country_code !== undefined) updateData.mobileWithoutCountryCode = record.mobile_without_country_code;
+    if (record.company !== undefined) updateData.company = record.company;
+    if (record.city !== undefined) updateData.city = record.city;
+    if (record.state !== undefined) updateData.state = record.state;
+    if (record.country !== undefined) updateData.country = record.country;
+    if (record.lead_owner !== undefined) updateData.leadOwner = record.lead_owner;
+    if (record.crm_status !== undefined) updateData.crmStatus = record.crm_status;
+    if (record.crm_note !== undefined) updateData.crmNote = record.crm_note;
+    if (record.data_source !== undefined) updateData.dataSource = record.data_source;
+    if (record.possession_time !== undefined) updateData.possessionTime = record.possession_time;
+    if (record.description !== undefined) updateData.description = record.description;
+
+    if (Object.keys(updateData).length === 0) return;
+
+    await this.database
+      .update(crmImportRecords)
+      .set(updateData)
+      .where(
+        and(
+          eq(crmImportRecords.importJobId, importId),
+          eq(crmImportRecords.rowIndex, rowIndex)
+        )
+      );
+  }
+
+  public async getSkippedRecord(importId: string, rowIndex: number): Promise<{ rowIndex: number; reason: string; rawData: Record<string, string>; importRowId: string } | null> {
+    const [record] = await this.database
+      .select()
+      .from(crmSkippedRecords)
+      .where(
+        and(
+          eq(crmSkippedRecords.importJobId, importId),
+          eq(crmSkippedRecords.rowIndex, rowIndex)
+        )
+      )
+      .limit(1);
+
+    if (!record) return null;
+
+    return {
+      rowIndex: record.rowIndex,
+      reason: record.reason,
+      rawData: record.rawData,
+      importRowId: record.importRowId,
+    };
+  }
+
+  public async reimportSkippedRecord(importId: string, importRowId: string, rowIndex: number, record: CrmRecord): Promise<void> {
+    await this.database.transaction(async (tx) => {
+      // 1. Insert into crmImportRecords
+      await tx.insert(crmImportRecords).values({
+        importJobId: importId,
+        importRowId,
+        rowIndex,
+        ...mapCrmRecordToDb(record),
+      });
+
+      // 2. Delete from crmSkippedRecords
+      await tx
+        .delete(crmSkippedRecords)
+        .where(
+          and(
+            eq(crmSkippedRecords.importJobId, importId),
+            eq(crmSkippedRecords.rowIndex, rowIndex)
+          )
+        );
+
+      // 3. Update importJobs counts
+      await tx
+        .update(importJobs)
+        .set({
+          importedCount: sqlAdd(importJobs.importedCount, 1),
+          skippedCount: sql<number>`GREATEST(${importJobs.skippedCount} - 1, 0)`,
+          updatedAt: new Date(),
+        })
+        .where(eq(importJobs.id, importId));
+    });
+  }
+
+  public async getHistory(limit: number, cursor?: number): Promise<{ jobs: ImportJobSummary[]; nextCursor: number | null; hasMore: boolean }> {
+    const offset = cursor ?? 0;
+    const items = await this.database
+      .select()
+      .from(importJobs)
+      .orderBy(desc(importJobs.createdAt))
+      .limit(limit + 1)
+      .offset(offset);
+
+    const hasMore = items.length > limit;
+    const jobsToReturn = hasMore ? items.slice(0, limit) : items;
+
+    return {
+      jobs: jobsToReturn.map(mapJobSummary),
+      nextCursor: hasMore ? offset + limit : null,
+      hasMore,
+    };
+  }
 }
 
 function mapJobSummary(job: typeof importJobs.$inferSelect): ImportJobSummary {
@@ -764,6 +868,7 @@ function mapJobSummary(job: typeof importJobs.$inferSelect): ImportJobSummary {
     importedCount: job.importedCount,
     skippedCount: job.skippedCount,
     errorMessage: job.errorMessage,
+    createdAt: job.createdAt,
   };
 }
 
@@ -835,6 +940,7 @@ function mapCrmRecordToDb(record: CrmRecord) {
     dataSource: record.data_source,
     possessionTime: record.possession_time,
     description: record.description,
+    confidence: record.confidence,
   };
 }
 
@@ -855,6 +961,7 @@ function mapDbToCrmRecord(record: typeof crmImportRecords.$inferSelect): CrmReco
     data_source: record.dataSource,
     possession_time: record.possessionTime,
     description: record.description,
+    confidence: record.confidence,
   };
 }
 

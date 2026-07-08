@@ -36,6 +36,7 @@ export interface GrowEasyCrmRecord {
   data_source: string | null;
   possession_time: string | null;
   description: string | null;
+  confidence: Record<string, number> | null;
 }
 
 export interface PreviewRow {
@@ -106,6 +107,27 @@ export interface SkippedRecord {
   rowIndex: number;
   reason: string;
   rawData: Record<string, string>;
+}
+
+export interface ImportJobSummary {
+  id: string;
+  status: ImportStatusValue;
+  headers: string[];
+  totalRows: number;
+  totalBatches: number;
+  processedRows: number;
+  importedCount: number;
+  skippedCount: number;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+export interface ImportHistoryResponse {
+  jobs: ImportJobSummary[];
+  pageInfo: {
+    nextCursor: number | null;
+    hasMore: boolean;
+  };
 }
 
 export interface ImportResult {
@@ -321,6 +343,7 @@ function parseGrowEasyCrmRecord(value: unknown): GrowEasyCrmRecord {
     data_source: expectNullableString(record.data_source, "record.data_source"),
     possession_time: expectNullableString(record.possession_time, "record.possession_time"),
     description: expectNullableString(record.description, "record.description"),
+    confidence: record.confidence == null ? null : parseNumberRecord(record.confidence, "record.confidence"),
   };
 }
 
@@ -416,4 +439,31 @@ function expectNullableNumber(value: unknown, label: string): number | null {
   }
 
   return expectNumber(value, label);
+}
+
+export function parseImportHistory(value: unknown): ImportHistoryResponse {
+  const record = expectRecord(value, "Import history response");
+  const pageInfo = expectRecord(record.pageInfo, "history.pageInfo");
+
+  return {
+    jobs: expectArray(record.jobs, "Import history jobs").map((item, index) => {
+      const job = expectRecord(item, `Import history jobs[${index}]`);
+      return {
+        id: expectString(job.id, "job.id"),
+        status: expectString(job.status, "job.status") as ImportStatusValue,
+        headers: expectArray(job.headers, "job.headers").map(String),
+        totalRows: expectNumber(job.totalRows, "job.totalRows"),
+        totalBatches: expectNumber(job.totalBatches, "job.totalBatches"),
+        processedRows: expectNumber(job.processedRows, "job.processedRows"),
+        importedCount: expectNumber(job.importedCount, "job.importedCount"),
+        skippedCount: expectNumber(job.skippedCount, "job.skippedCount"),
+        errorMessage: expectNullableString(job.errorMessage, "job.errorMessage"),
+        createdAt: expectString(job.createdAt, "job.createdAt"),
+      };
+    }),
+    pageInfo: {
+      nextCursor: expectNullableNumber(pageInfo.nextCursor, "pageInfo.nextCursor"),
+      hasMore: expectBoolean(pageInfo.hasMore, "pageInfo.hasMore"),
+    },
+  };
 }
