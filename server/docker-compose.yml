@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: groweasy-postgres
+    environment:
+      POSTGRES_DB: groweasy
+      POSTGRES_USER: groweasy
+      POSTGRES_PASSWORD: groweasy
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - groweasy_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U groweasy -d groweasy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  groweasy_postgres_data:

@@ -1,0 +1,65 @@
+import type { AppLogger } from './config/logger.js';
+import { logger } from './config/logger.js';
+import type { Env } from './config/env.js';
+import { env } from './config/env.js';
+import { checkDatabaseConnection, closeDatabaseConnection, db } from './db/index.js';
+import type { ImportsModuleContainer } from './modules/imports/imports.container.js';
+import { createImportsContainer } from './modules/imports/imports.container.js';
+import type { HealthModuleContainer } from './modules/health/health.container.js';
+import { createHealthContainer } from './modules/health/health.container.js';
+
+export interface DisposableResource {
+  name: string;
+  close: () => Promise<void> | void;
+}
+
+export interface ApplicationContainer {
+  config: Env;
+  logger: AppLogger;
+  service: {
+    name: string;
+    version: string;
+  };
+  modules: {
+    health: HealthModuleContainer;
+    imports: ImportsModuleContainer;
+  };
+  resources: DisposableResource[];
+}
+
+export interface ContainerOverrides {
+  checkDatabaseConnection?: () => Promise<boolean>;
+}
+
+export function createContainer(overrides: ContainerOverrides = {}): ApplicationContainer {
+  const service = {
+    name: 'groweasy-api',
+    version: '1.0.0',
+  };
+  const health = createHealthContainer({
+    config: env,
+    service,
+    checkDatabaseConnection: overrides.checkDatabaseConnection ?? checkDatabaseConnection,
+  });
+  const imports = createImportsContainer({
+    config: env,
+    database: db,
+    logger,
+  });
+
+  return {
+    config: env,
+    logger,
+    service,
+    modules: {
+      health,
+      imports,
+    },
+    resources: [
+      {
+        name: 'postgres',
+        close: closeDatabaseConnection,
+      },
+    ],
+  };
+}
