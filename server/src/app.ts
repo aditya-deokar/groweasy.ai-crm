@@ -34,13 +34,25 @@ import { createRequestLoggerMiddleware } from './shared/presentation/middlewares
 import { sendSuccess } from './shared/presentation/responses/response-sender.js';
 
 import { getEnv } from './config/env.js';
-export function createApp(container: ApplicationContainer = createContainer()): express.Express {
+
+let cachedApp: express.Express | undefined;
+
+function isHttpRequest(arg: unknown): arg is express.Request {
+  return Boolean(
+    arg &&
+      typeof arg === 'object' &&
+      'url' in arg &&
+      'method' in arg &&
+      'headers' in arg
+  );
+}
+
+function buildApp(container: ApplicationContainer): express.Express {
   const app = express();
-  const config = container?.config ?? getEnv();
+  const config = container.config ?? getEnv();
 
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
-
 
   app.use(requestIdMiddleware);
   app.use(createRequestLoggerMiddleware(container.logger));
@@ -68,11 +80,38 @@ export function createApp(container: ApplicationContainer = createContainer()): 
   app.use('/health', container.modules.health.router);
   app.use(config.apiPrefix ?? '/api/v1', createApiRouter(container));
 
-
   app.use(notFoundMiddleware);
   app.use(createErrorHandlerMiddleware(container.logger));
 
   return app;
 }
 
+export function createApp(container?: ApplicationContainer): express.Express;
+export function createApp(req: express.Request, res: express.Response): void;
+export function createApp(
+  containerOrReq?: ApplicationContainer | unknown,
+  res?: unknown
+): express.Express | void {
+
+  // If Vercel's serverless runtime invoked createApp(req, res) directly
+  if (isHttpRequest(containerOrReq) && res && typeof res === 'object') {
+    if (!cachedApp) {
+      cachedApp = buildApp(createContainer());
+    }
+    return cachedApp(containerOrReq as express.Request, res as express.Response);
+  }
+
+  // Otherwise createApp(container) was called
+  const container: ApplicationContainer =
+    containerOrReq &&
+    typeof containerOrReq === 'object' &&
+    'modules' in containerOrReq &&
+    (containerOrReq as ApplicationContainer).modules
+      ? (containerOrReq as ApplicationContainer)
+      : createContainer();
+
+  return buildApp(container);
+}
+
 export default createApp;
+
