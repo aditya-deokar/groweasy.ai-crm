@@ -1,6 +1,7 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import {
   AlertTriangle,
   CheckCircle2,
@@ -8,6 +9,11 @@ import {
   LoaderCircle,
   RotateCcw,
   Upload,
+  History,
+  Sparkles,
+  ShieldCheck,
+  Database,
+  ArrowUpRight,
 } from "lucide-react"
 import { PageLayout } from "@/components/layout/page-layout"
 import { BatchesTable } from "@/components/import/batches-table"
@@ -60,6 +66,37 @@ function ImportPageContent() {
 
   const [dialogSource, setDialogSource] = useState<string | null>(null)
   const isDialogOpen = dialogSource !== null || Boolean(session.importId)
+
+  const [isGlobalDragging, setIsGlobalDragging] = useState(false)
+
+  useEffect(() => {
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault()
+    }
+    const onDragEnter = (e: DragEvent) => {
+      e.preventDefault()
+      if (e.dataTransfer?.types?.includes("Files")) {
+        setIsGlobalDragging(true)
+      }
+    }
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault()
+      setIsGlobalDragging(false)
+      const files = e.dataTransfer?.files
+      if (files && files.length > 0) {
+        setDialogSource("csv")
+        session.handleFileUpload(files[0])
+      }
+    }
+    window.addEventListener("dragenter", onDragEnter)
+    window.addEventListener("dragover", onDragOver)
+    window.addEventListener("drop", onDrop)
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter)
+      window.removeEventListener("dragover", onDragOver)
+      window.removeEventListener("drop", onDrop)
+    }
+  }, [session])
 
   const [sources] = useState<LeadSource[]>([
     {
@@ -205,22 +242,163 @@ function ImportPageContent() {
     0
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8">
-      {/* ── TOP SECTION ── */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <Badge className="border-0 bg-[#E6F4EA] text-xs font-medium text-[#0D652D] hover:bg-[#E6F4EA]">
-              AI Powered
-            </Badge>
+    <div
+      className="w-full space-y-8 relative"
+      onDragEnter={(e) => {
+        e.preventDefault()
+        if (e.dataTransfer?.types?.includes("Files")) {
+          setIsGlobalDragging(true)
+        }
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+      }}
+    >
+      {/* ── FULLSCREEN APPLE AIRDROP / iCLOUD GLASS DRAG & DROP OVERLAY ── */}
+      {isGlobalDragging && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onDragEnter={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (e.currentTarget === e.target) {
+              setIsGlobalDragging(false)
+            }
+          }}
+          onClick={() => setIsGlobalDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsGlobalDragging(false)
+            const files = e.dataTransfer.files
+            if (files && files.length > 0) {
+              setDialogSource("csv")
+              session.handleFileUpload(files[0])
+            }
+          }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-2xl p-6 transition-all duration-300 animate-in fade-in-0 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex flex-col items-center justify-center gap-6 rounded-3xl border-2 border-dashed border-emerald-500/70 bg-card/95 dark:bg-[#141518]/95 p-12 text-center shadow-2xl max-w-lg w-full scale-105 transition-transform duration-300 relative"
+          >
+            <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-500 shadow-xl animate-bounce">
+              <Upload className="h-12 w-12" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold tracking-tight text-foreground">
+                Drop CSV File to Import
+              </h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Release your file anywhere on the screen to instantly validate, normalize, and import contacts into GrowEasy CRM.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <FileSpreadsheet className="h-4 w-4" />
+                GrowEasy AI Parser Ready
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsGlobalDragging(false)}
+                className="rounded-full h-8 px-3 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">
-              Lead Import Sources
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Upload CSV files to import leads, or connect a campaign source.
-            </p>
+        </div>
+      )}
+      {/* ── FUNCTIONAL LEAD IMPORT STUDIO HEADER BAR ── */}
+      <div className="rounded-3xl border border-border/70 dark:border-white/[0.1] bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-xl shadow-black/5 dark:shadow-black/20 p-6 lg:p-7 overflow-hidden relative space-y-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2.5 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                AI Powered Normalization Engine Active
+              </span>
+            </div>
+            <div>
+              <h2 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
+                Lead Import & Sync Studio
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
+                Upload CSV files to import contacts, or connect live campaign data sources with real-time AI normalization and duplicate prevention.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={session.handleDownloadSample}
+              className="h-10 rounded-xl px-4 border-border/70 bg-foreground/[0.03] hover:bg-foreground/[0.08] text-xs font-semibold gap-2 transition-all cursor-pointer"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+              Sample CSV
+            </Button>
+            <Link href="/import/history">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 rounded-xl px-4 border-border/70 bg-foreground/[0.03] hover:bg-foreground/[0.08] text-xs font-semibold gap-2 transition-all cursor-pointer"
+              >
+                <History className="h-4 w-4" />
+                Import History
+              </Button>
+            </Link>
+            <Button
+              size="sm"
+              onClick={() => handleUploadCsvClick("csv")}
+              className="h-10 rounded-xl px-5 bg-[#0D652D] hover:bg-[#0A4D22] text-white text-xs font-semibold shadow-md shadow-[#0D652D]/20 gap-2 transition-all cursor-pointer"
+            >
+              <Upload className="h-4 w-4" />
+              Upload CSV File
+            </Button>
+          </div>
+        </div>
+
+        {/* ── LIVE ENGINE METRICS & STATUS GRID ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4 border-t border-border/50 dark:border-white/[0.08]">
+          <div className="flex items-center gap-3 rounded-2xl bg-foreground/[0.02] dark:bg-white/[0.02] border border-border/50 p-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400">
+              <Database className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-foreground">Active Ingestion Channels</p>
+              <p className="text-[11px] text-muted-foreground truncate">CSV Upload Ready · Ads & Social Integration</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-2xl bg-foreground/[0.02] dark:bg-white/[0.02] border border-border/50 p-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-foreground">AI Field Normalization</p>
+              <p className="text-[11px] text-muted-foreground truncate">Auto-detects Names, Emails, Phones & Custom Fields</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-2xl bg-foreground/[0.02] dark:bg-white/[0.02] border border-border/50 p-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-foreground">Deduplication & Safety</p>
+              <p className="text-[11px] text-muted-foreground truncate">100% Guardrails block duplicates & formatting errors</p>
+            </div>
           </div>
         </div>
       </div>
@@ -239,16 +417,15 @@ function ImportPageContent() {
 
       {/* ── IMPORT DIALOG ── */}
       <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="flex max-h-[88vh] w-[92vw] flex-col gap-0 overflow-y-auto p-0 sm:max-w-4xl">
+        <DialogContent className="flex max-h-[88vh] w-[92vw] flex-col gap-0 overflow-y-auto p-0 rounded-3xl border border-border/70 dark:border-white/[0.12] bg-card/92 dark:bg-[#141518]/92 backdrop-blur-3xl shadow-2xl sm:max-w-4xl">
           {/* Dialog Header with Stepper */}
-          <div className="sticky top-0 z-20 space-y-4 border-b bg-background px-6 py-4">
+          <div className="sticky top-0 z-20 space-y-4 border-b border-border/60 bg-card/85 dark:bg-[#141518]/85 backdrop-blur-xl px-6 py-4">
             <DialogHeader className="space-y-1">
-              <DialogTitle className="text-lg font-semibold">
+              <DialogTitle className="text-lg font-semibold tracking-tight">
                 Import Leads via CSV
               </DialogTitle>
-              <DialogDescription className="text-sm">
-                Upload, validate, and import your leads with AI-powered
-                normalization.
+              <DialogDescription className="text-xs text-muted-foreground">
+                Upload, validate, and import your leads with AI-powered normalization.
               </DialogDescription>
             </DialogHeader>
             <ImportStepper currentStep={getStepperStep()} />
@@ -329,15 +506,15 @@ function ImportPageContent() {
                   <Card className="overflow-hidden border shadow-sm">
                     <div className="max-h-[280px] overflow-x-auto">
                       <table className="w-full text-left text-sm">
-                        <thead className="sticky top-0 bg-muted/50 backdrop-blur-sm">
+                        <thead className="sticky top-0 bg-gradient-to-r from-foreground/[0.05] via-foreground/[0.08] to-foreground/[0.05] dark:from-white/[0.06] dark:via-white/[0.09] dark:to-white/[0.06] border-b border-border/80 dark:border-white/[0.12] backdrop-blur-2xl z-10">
                           <tr>
-                            <th className="px-3 py-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                            <th className="px-3.5 py-3 text-[11px] font-semibold tracking-wider text-foreground/85 dark:text-white/90 uppercase select-none">
                               #
                             </th>
                             {session.localPreview.headers.map((h) => (
                               <th
                                 key={h}
-                                className="px-3 py-2 text-[11px] font-semibold tracking-wider whitespace-nowrap text-muted-foreground uppercase"
+                                className="px-3.5 py-3 text-[11px] font-semibold tracking-wider whitespace-nowrap text-foreground/85 dark:text-white/90 uppercase select-none"
                               >
                                 {h}
                               </th>
@@ -634,7 +811,7 @@ function ImportPageContent() {
 
 function ImportPageFallback() {
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="w-full">
       <Card className="mx-auto mt-12 max-w-2xl">
         <CardContent className="flex items-center gap-3 py-12 text-muted-foreground">
           <LoaderCircle className="h-5 w-5 animate-spin" />

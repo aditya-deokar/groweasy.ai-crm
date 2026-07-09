@@ -119,11 +119,54 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+    scrollbar-width: thin;
+    scrollbar-color: rgba(140, 140, 140, 0.2) transparent;
+  }
   body {
     @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+  }
+
+  /* Minimal scrollbar properties for Firefox and modern browsers */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(140, 140, 140, 0.22) transparent;
+  }
+
+  /* WebKit minimal scrollbars (Chrome, Safari, Edge) */
+  ::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb,
+  *::-webkit-scrollbar-thumb {
+    background: rgba(140, 140, 140, 0.22);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover,
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(140, 140, 140, 0.45);
+  }
+
+  ::-webkit-scrollbar-button,
+  *::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  ::-webkit-scrollbar-corner,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }

@@ -6,6 +6,8 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
+  ChevronDown,
   Edit2,
   Filter,
   LoaderCircle,
@@ -18,6 +20,12 @@ import { PageLayout } from "@/components/layout/page-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -155,78 +163,72 @@ export default function LeadsPage() {
       title="Manage Leads"
       subtitle="View, edit, filter, and delete synchronized leads within GrowEasy CRM."
     >
-      <div className="space-y-5">
-        <Card className="shadow-sm">
-          <CardContent className="pt-5 pb-4">
-            <form
-              onSubmit={handleSearchSubmit}
-              className="flex flex-wrap items-end gap-3"
-            >
-              <div className="min-w-[220px] flex-1 space-y-1.5">
-                <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-                  Search
-                </label>
-                <div className="relative">
-                  <Input
-                    placeholder="Search name, email, phone, company, city..."
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    className="h-9 pl-9"
-                  />
-                  <Search className="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
-                </div>
-              </div>
-
-              <FilterSelect
-                label="CRM Status"
-                value={status}
-                options={STATUS_LABELS}
-                allLabel="All Statuses"
-                onChange={(nextValue) => {
-                  setStatus(nextValue);
-                  setPage(1);
-                }}
+      <div className="space-y-4">
+        {/* Apple iOS Spotlight Floating Control Bar */}
+        <div className="p-3 lg:p-3.5 rounded-2xl lg:rounded-3xl border border-border/70 dark:border-white/[0.08] bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-lg shadow-black/5 dark:shadow-black/20 transition-all">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex flex-wrap items-center gap-2.5"
+          >
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute top-1/2 left-3.5 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search leads by name, email, phone, company..."
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                className="h-10 pl-10 pr-4 rounded-xl border-border/60 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.07] focus-visible:bg-background text-xs font-medium transition-all shadow-2xs"
               />
+            </div>
 
-              <FilterSelect
-                label="Lead Source"
-                value={source}
-                options={SOURCE_LABELS}
-                allLabel="All Sources"
-                onChange={(nextValue) => {
-                  setSource(nextValue);
-                  setPage(1);
-                }}
-              />
+            <FilterSelect
+              label="CRM Status"
+              value={status}
+              options={STATUS_LABELS}
+              allLabel="All Statuses"
+              onChange={(nextValue) => {
+                setStatus(nextValue);
+                setPage(1);
+              }}
+            />
 
-              <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="h-9 bg-[#0D652D] text-white hover:bg-[#0A4D22]"
-                >
-                  <Filter className="mr-1.5 h-3.5 w-3.5" />
-                  Filter
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetFilters}
-                  className="h-9"
-                >
-                  Clear
-                </Button>
-                <Button type="button" size="sm" variant="secondary" asChild>
-                  <Link href="/import" className="h-9 gap-1.5">
-                    <PlusCircle className="h-3.5 w-3.5" />
-                    Import
-                  </Link>
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+            <FilterSelect
+              label="Lead Source"
+              value={source}
+              options={SOURCE_LABELS}
+              allLabel="All Sources"
+              onChange={(nextValue) => {
+                setSource(nextValue);
+                setPage(1);
+              }}
+            />
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                type="submit"
+                size="sm"
+                className="h-10 rounded-xl px-4 bg-[#0D652D] text-white hover:bg-[#0A4D22] font-medium text-xs shadow-sm transition-all cursor-pointer"
+              >
+                <Filter className="mr-1.5 h-3.5 w-3.5" />
+                Filter
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleResetFilters}
+                className="h-10 rounded-xl px-3.5 text-xs text-muted-foreground hover:text-foreground font-medium cursor-pointer"
+              >
+                Clear
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-10 rounded-xl px-4 border-border/70 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.08] text-foreground font-medium text-xs shadow-2xs cursor-pointer" asChild>
+                <Link href="/import" className="gap-1.5">
+                  <PlusCircle className="h-3.5 w-3.5 text-emerald-500" />
+                  Import
+                </Link>
+              </Button>
+            </div>
+          </form>
+        </div>
 
         <Card className="overflow-hidden shadow-sm">
           <CardContent className="p-0">
@@ -247,46 +249,51 @@ export default function LeadsPage() {
 
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/40">
-                        <LeadTableHead>Name</LeadTableHead>
-                        <LeadTableHead>Contact</LeadTableHead>
-                        <LeadTableHead>Company / Location</LeadTableHead>
-                        <LeadTableHead>Status</LeadTableHead>
+                    <thead className="bg-gradient-to-r from-foreground/[0.05] via-foreground/[0.08] to-foreground/[0.05] dark:from-white/[0.06] dark:via-white/[0.09] dark:to-white/[0.06] border-b border-border/80 dark:border-white/[0.12] backdrop-blur-2xl">
+                      <tr>
+                        <LeadTableHead>Lead Profile</LeadTableHead>
+                        <LeadTableHead>Contact Info</LeadTableHead>
+                        <LeadTableHead>Company & Location</LeadTableHead>
+                        <LeadTableHead>CRM Status</LeadTableHead>
                         <LeadTableHead>Source / Owner</LeadTableHead>
-                        <LeadTableHead>Lead Date</LeadTableHead>
-                        <LeadTableHead>Note</LeadTableHead>
+                        <LeadTableHead>Date Added</LeadTableHead>
+                        <LeadTableHead>Notes</LeadTableHead>
                         <LeadTableHead align="right">Actions</LeadTableHead>
                       </tr>
                     </thead>
-                    <tbody className="divide-y">
+                    <tbody className="divide-y divide-border/40">
                       {leads.map((lead) => (
                         <tr
                           key={lead.id}
-                          className="transition-colors hover:bg-muted/20"
+                          className="group/row transition-all duration-200 hover:bg-foreground/[0.04] dark:hover:bg-white/[0.04]"
                         >
                           <LeadTableCell>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-medium text-foreground">
-                                {formatOptional(lead.name)}
-                              </span>
-                              {lead.description && (
-                                <span
-                                  className="max-w-[180px] truncate text-xs text-muted-foreground"
-                                  title={lead.description}
-                                >
-                                  {lead.description}
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-semibold text-xs shrink-0 shadow-2xs group-hover/row:scale-105 transition-transform duration-200">
+                                {getLeadInitials(lead.name)}
+                              </div>
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="font-semibold text-sm text-foreground group-hover/row:text-emerald-400 transition-colors truncate">
+                                  {formatOptional(lead.name)}
                                 </span>
-                              )}
+                                {lead.description && (
+                                  <span
+                                    className="max-w-[180px] truncate text-xs text-muted-foreground"
+                                    title={lead.description}
+                                  >
+                                    {lead.description}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </LeadTableCell>
 
                           <LeadTableCell>
-                            <div className="flex flex-col space-y-0.5 text-xs">
-                              <span className="font-medium text-foreground">
+                            <div className="flex flex-col space-y-0.5">
+                              <span className="font-medium text-xs text-foreground truncate">
                                 {formatOptional(lead.email)}
                               </span>
-                              <span className="text-muted-foreground">
+                              <span className="text-[11px] font-mono text-muted-foreground">
                                 {formatPhone(lead)}
                               </span>
                             </div>
@@ -294,11 +301,11 @@ export default function LeadsPage() {
 
                           <LeadTableCell>
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-sm text-foreground">
+                              <span className="font-medium text-xs text-foreground">
                                 {formatOptional(lead.company)}
                               </span>
                               <span
-                                className="max-w-[220px] truncate text-xs text-muted-foreground"
+                                className="max-w-[200px] truncate text-[11px] text-muted-foreground"
                                 title={formatLocation(lead)}
                               >
                                 {formatLocation(lead)}
@@ -308,15 +315,10 @@ export default function LeadsPage() {
 
                           <LeadTableCell>
                             {lead.crm_status ? (
-                              <Badge
-                                variant="outline"
-                                className={
-                                  STATUS_COLORS[lead.crm_status] ||
-                                  "bg-secondary text-secondary-foreground"
-                                }
-                              >
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-2xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                                 {STATUS_LABELS[lead.crm_status] || lead.crm_status}
-                              </Badge>
+                              </span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -325,13 +327,10 @@ export default function LeadsPage() {
                           <LeadTableCell>
                             <div className="flex flex-col gap-1">
                               {lead.data_source ? (
-                                <Badge
-                                  variant="outline"
-                                  className="w-fit text-xs capitalize"
-                                >
+                                <span className="inline-flex items-center w-fit px-2.5 py-1 rounded-full text-[11px] font-medium bg-foreground/[0.06] dark:bg-white/[0.08] text-foreground border border-border/60">
                                   {SOURCE_LABELS[lead.data_source] ||
                                     lead.data_source}
-                                </Badge>
+                                </span>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
                               )}
@@ -345,14 +344,14 @@ export default function LeadsPage() {
                             <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
                               <span>{formatDateValue(lead.created_at)}</span>
                               {lead.possession_time && (
-                                <span>{lead.possession_time}</span>
+                                <span className="text-[11px]">{lead.possession_time}</span>
                               )}
                             </div>
                           </LeadTableCell>
 
                           <LeadTableCell>
                             <span
-                              className="block max-w-[220px] truncate text-xs text-muted-foreground"
+                              className="block max-w-[200px] truncate text-xs text-muted-foreground"
                               title={lead.crm_note ?? ""}
                             >
                               {formatOptional(lead.crm_note)}
@@ -360,12 +359,12 @@ export default function LeadsPage() {
                           </LeadTableCell>
 
                           <LeadTableCell align="right">
-                            <div className="flex justify-end gap-1">
+                            <div className="flex justify-end gap-1.5">
                               <Button
                                 size="icon"
                                 variant="ghost"
                                 onClick={() => openEditDialog(lead)}
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                className="h-8 w-8 rounded-xl bg-foreground/[0.04] hover:bg-foreground/[0.1] text-muted-foreground hover:text-foreground transition-all cursor-pointer shadow-2xs"
                                 aria-label={`Edit ${lead.name ?? "lead"}`}
                               >
                                 <Edit2 className="h-3.5 w-3.5" />
@@ -374,7 +373,7 @@ export default function LeadsPage() {
                                 size="icon"
                                 variant="ghost"
                                 onClick={() => openDeleteDialog(lead)}
-                                className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                className="h-8 w-8 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive transition-all cursor-pointer shadow-2xs"
                                 aria-label={`Delete ${lead.name ?? "lead"}`}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -387,10 +386,10 @@ export default function LeadsPage() {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-between border-t bg-muted/20 p-3.5">
-                  <div className="text-xs text-muted-foreground">
+                <div className="flex items-center justify-between border-t border-border/50 bg-foreground/[0.02] dark:bg-white/[0.02] px-5 py-3.5">
+                  <div className="text-xs font-medium text-muted-foreground">
                     {(page - 1) * limit + 1}-{Math.min(page * limit, totalLeads)} of{" "}
-                    {totalLeads} leads
+                    <span className="text-foreground font-semibold">{totalLeads}</span> leads
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -398,12 +397,12 @@ export default function LeadsPage() {
                       size="sm"
                       onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
                       disabled={page === 1}
-                      className="h-7 gap-1 text-xs"
+                      className="h-8 rounded-xl px-3 gap-1.5 text-xs font-medium border-border/60 bg-card hover:bg-foreground/[0.05] cursor-pointer"
                     >
-                      <ArrowLeft className="h-3 w-3" />
+                      <ArrowLeft className="h-3.5 w-3.5" />
                       Prev
                     </Button>
-                    <span className="px-1.5 text-xs font-medium">
+                    <span className="px-2 text-xs font-semibold text-foreground">
                       {page} / {totalPages || 1}
                     </span>
                     <Button
@@ -413,10 +412,10 @@ export default function LeadsPage() {
                         setPage((currentPage) => Math.min(totalPages, currentPage + 1))
                       }
                       disabled={page === totalPages || totalPages === 0}
-                      className="h-7 gap-1 text-xs"
+                      className="h-8 rounded-xl px-3 gap-1.5 text-xs font-medium border-border/60 bg-card hover:bg-foreground/[0.05] cursor-pointer"
                     >
                       Next
-                      <ArrowRight className="h-3 w-3" />
+                      <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -427,72 +426,57 @@ export default function LeadsPage() {
       </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="flex max-h-[85vh] w-[90vw] flex-col gap-5 overflow-y-auto p-6 sm:max-w-2xl">
-          <DialogHeader className="border-b pb-3">
-            <DialogTitle className="text-base font-semibold">Edit Lead</DialogTitle>
-            <DialogDescription>Modify lead details and save to CRM.</DialogDescription>
+        <DialogContent className="flex max-h-[85vh] w-[92vw] flex-col gap-5 overflow-y-auto p-6 sm:max-w-2xl">
+          <DialogHeader className="border-b border-border/60 pb-4">
+            <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">
+              Edit Lead Profile
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Modify lead contact details, status, and notes, then save your changes.
+            </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <LeadInput label="Name" value={editForm.name} onChange={(value) => updateEditField("name", value)} />
-              <LeadInput label="Email" type="email" value={editForm.email} onChange={(value) => updateEditField("email", value)} />
+          <form onSubmit={handleSaveEdit} className="space-y-5">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+              <LeadInput label="Lead Name" value={editForm.name} onChange={(value) => updateEditField("name", value)} />
+              <LeadInput label="Email Address" type="email" value={editForm.email} onChange={(value) => updateEditField("email", value)} />
               <LeadInput label="Country Code" value={editForm.country_code} onChange={(value) => updateEditField("country_code", value)} />
-              <LeadInput label="Mobile" value={editForm.mobile_without_country_code} onChange={(value) => updateEditField("mobile_without_country_code", value)} />
-              <LeadInput label="Company" value={editForm.company} onChange={(value) => updateEditField("company", value)} />
+              <LeadInput label="Mobile Number" value={editForm.mobile_without_country_code} onChange={(value) => updateEditField("mobile_without_country_code", value)} />
+              <LeadInput label="Company Name" value={editForm.company} onChange={(value) => updateEditField("company", value)} />
               <LeadInput label="Lead Owner" value={editForm.lead_owner} onChange={(value) => updateEditField("lead_owner", value)} />
               <LeadInput label="City" value={editForm.city} onChange={(value) => updateEditField("city", value)} />
-              <LeadInput label="State" value={editForm.state} onChange={(value) => updateEditField("state", value)} />
+              <LeadInput label="State / Province" value={editForm.state} onChange={(value) => updateEditField("state", value)} />
               <LeadInput label="Country" value={editForm.country} onChange={(value) => updateEditField("country", value)} />
               <LeadInput label="Lead Date" value={editForm.created_at} onChange={(value) => updateEditField("created_at", value)} />
               <LeadInput label="Possession Time" value={editForm.possession_time} onChange={(value) => updateEditField("possession_time", value)} />
 
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-                  Status
-                </label>
-                <select
-                  value={editForm.crm_status || ""}
-                  onChange={(event) => updateEditField("crm_status", event.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <option value="">No Status</option>
-                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <FormSelectDropdown
+                label="CRM Status"
+                value={editForm.crm_status || ""}
+                options={STATUS_LABELS}
+                placeholder="No Status"
+                onChange={(value) => updateEditField("crm_status", value)}
+              />
 
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-                  Source
-                </label>
-                <select
-                  value={editForm.data_source || ""}
-                  onChange={(event) => updateEditField("data_source", event.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <option value="">No Source</option>
-                  {Object.entries(SOURCE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <FormSelectDropdown
+                label="Lead Source"
+                value={editForm.data_source || ""}
+                options={SOURCE_LABELS}
+                placeholder="No Source"
+                onChange={(value) => updateEditField("data_source", value)}
+              />
 
               <LeadTextarea label="Note" value={editForm.crm_note} onChange={(value) => updateEditField("crm_note", value)} />
               <LeadTextarea label="Description" value={editForm.description} onChange={(value) => updateEditField("description", value)} />
             </div>
 
-            <DialogFooter className="border-t pt-3">
+            <DialogFooter className="border-t border-border/60 pt-4 flex items-center justify-end gap-2.5">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setIsEditDialogOpen(false)}
+                className="h-10 rounded-xl px-4 border-border/70 bg-foreground/[0.04] dark:bg-white/[0.05] hover:bg-foreground/[0.08] text-xs font-medium text-foreground cursor-pointer"
               >
                 Cancel
               </Button>
@@ -500,7 +484,7 @@ export default function LeadsPage() {
                 type="submit"
                 size="sm"
                 disabled={updateMutation.isPending}
-                className="bg-[#0D652D] text-white hover:bg-[#0A4D22]"
+                className="h-10 rounded-xl px-5 bg-[#0D652D] text-white hover:bg-[#0A4D22] text-xs font-medium shadow-sm transition-all cursor-pointer"
               >
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
@@ -511,25 +495,28 @@ export default function LeadsPage() {
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="w-[90vw] gap-5 p-6 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-              <Trash2 className="h-4.5 w-4.5 text-destructive" />
+          <DialogHeader className="space-y-2">
+            <div className="w-10 h-10 rounded-2xl bg-destructive/15 border border-destructive/30 flex items-center justify-center text-destructive mb-1">
+              <Trash2 className="h-5 w-5" />
+            </div>
+            <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">
               Delete Lead
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
               This will permanently remove{" "}
-              <strong className="text-foreground">
+              <strong className="text-foreground font-semibold">
                 {selectedLead?.name ?? "this lead"}
               </strong>{" "}
-              from your CRM. This cannot be undone.
+              from your GrowEasy CRM database. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2.5 pt-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsDeleteDialogOpen(false)}
+              className="h-10 rounded-xl px-4 border-border/70 bg-foreground/[0.04] hover:bg-foreground/[0.08] text-xs font-medium cursor-pointer"
             >
               Cancel
             </Button>
@@ -538,6 +525,7 @@ export default function LeadsPage() {
               size="sm"
               onClick={handleDeleteConfirm}
               disabled={deleteMutation.isPending}
+              className="h-10 rounded-xl px-5 text-xs font-medium shadow-sm cursor-pointer"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete Lead"}
             </Button>
@@ -565,24 +553,41 @@ function FilterSelect({
   allLabel: string;
   onChange: (value: string) => void;
 }) {
+  const currentLabel = value === "ALL" ? allLabel : options[value] || allLabel;
+
   return (
-    <div className="w-[170px] space-y-1.5">
-      <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-        {label}
-      </label>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <option value="ALL">{allLabel}</option>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center justify-between gap-2 h-10 min-w-[155px] rounded-xl border border-border/60 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.07] px-3.5 text-xs font-medium text-foreground shadow-2xs transition-all focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:outline-none cursor-pointer select-none"
+        >
+          <span className="truncate">{currentLabel}</span>
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[170px]">
+        <DropdownMenuItem
+          onClick={() => onChange("ALL")}
+          className="justify-between"
+        >
+          <span>{allLabel}</span>
+          {value === "ALL" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+        </DropdownMenuItem>
         {Object.entries(options).map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
+          <DropdownMenuItem
+            key={optionValue}
+            onClick={() => onChange(optionValue)}
+            className="justify-between"
+          >
+            <span>{optionLabel}</span>
+            {value === optionValue && (
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            )}
+          </DropdownMenuItem>
         ))}
-      </select>
-    </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -598,6 +603,15 @@ function EmptyLeadsState() {
   );
 }
 
+function getLeadInitials(name: string | null | undefined): string {
+  if (!name || !name.trim()) return "L";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return parts[0].slice(0, 2).toUpperCase();
+}
+
 function LeadTableHead({
   children,
   align = "left",
@@ -607,7 +621,7 @@ function LeadTableHead({
 }) {
   return (
     <th
-      className={`p-3.5 text-[11px] font-semibold tracking-wider whitespace-nowrap text-muted-foreground uppercase ${
+      className={`px-4 py-4 text-[11px] font-semibold tracking-wider whitespace-nowrap text-foreground/85 dark:text-white/90 uppercase select-none ${
         align === "right" ? "text-right" : ""
       }`}
     >
@@ -624,7 +638,7 @@ function LeadTableCell({
   align?: "left" | "right";
 }) {
   return (
-    <td className={`p-3.5 ${align === "right" ? "text-right" : ""}`}>
+    <td className={`px-4 py-3.5 align-middle ${align === "right" ? "text-right" : ""}`}>
       {children}
     </td>
   );
@@ -643,13 +657,14 @@ function LeadInput({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+      <label className="text-xs font-semibold text-foreground/85">
         {label}
       </label>
       <Input
         type={type}
         value={value || ""}
         onChange={(event) => onChange(event.target.value)}
+        className="h-10 rounded-xl border-border/60 bg-foreground/[0.04] dark:bg-white/[0.05] hover:bg-foreground/[0.06] focus-visible:bg-background px-3.5 text-xs font-medium text-foreground transition-all shadow-2xs"
       />
     </div>
   );
@@ -666,14 +681,67 @@ function LeadTextarea({
 }) {
   return (
     <div className="space-y-1.5 sm:col-span-2">
-      <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+      <label className="text-xs font-semibold text-foreground/85">
         {label}
       </label>
       <textarea
         value={value || ""}
         onChange={(event) => onChange(event.target.value)}
-        className="flex min-h-[64px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex min-h-[72px] w-full rounded-xl border border-border/60 bg-foreground/[0.04] dark:bg-white/[0.05] hover:bg-foreground/[0.06] focus-visible:bg-background p-3.5 text-xs font-medium text-foreground shadow-2xs transition-all placeholder:text-muted-foreground focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:outline-none"
       />
+    </div>
+  );
+}
+
+function FormSelectDropdown({
+  label,
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Record<string, string>;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  const currentLabel = value && options[value] ? options[value] : placeholder;
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-foreground/85">
+        {label}
+      </label>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex h-10 w-full items-center justify-between rounded-xl border border-border/60 bg-foreground/[0.04] dark:bg-white/[0.05] hover:bg-foreground/[0.07] px-3.5 text-xs font-medium text-foreground shadow-2xs transition-all focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:outline-none cursor-pointer"
+          >
+            <span className="truncate">{currentLabel}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width) min-w-[200px]">
+          <DropdownMenuItem onClick={() => onChange("")} className="justify-between">
+            <span className="text-muted-foreground">{placeholder}</span>
+            {!value && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+          </DropdownMenuItem>
+          {Object.entries(options).map(([optionValue, optionLabel]) => (
+            <DropdownMenuItem
+              key={optionValue}
+              onClick={() => onChange(optionValue)}
+              className="justify-between"
+            >
+              <span>{optionLabel}</span>
+              {value === optionValue && (
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
