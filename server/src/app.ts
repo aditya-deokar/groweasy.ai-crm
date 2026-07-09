@@ -1,7 +1,14 @@
 import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
-import helmet from 'helmet';
+import helmetLib from 'helmet';
+
+const helmet = (
+  typeof helmetLib === 'function'
+    ? helmetLib
+    : (helmetLib as unknown as { default: (options?: unknown) => express.RequestHandler }).default
+) as (options?: unknown) => express.RequestHandler;
+
 import { createCorsOptions } from './config/cors.js';
 import { createRateLimitMiddleware } from './config/rate-limit.js';
 import { helmetOptions } from './config/security.js';
