@@ -1,7 +1,7 @@
 import type { AppLogger } from './config/logger.js';
 import { logger } from './config/logger.js';
 import type { Env } from './config/env.js';
-import { env } from './config/env.js';
+import { env, getEnv } from './config/env.js';
 import { checkDatabaseConnection, closeDatabaseConnection, db } from './db/index.js';
 import type { ImportsModuleContainer } from './modules/imports/imports.container.js';
 import { createImportsContainer } from './modules/imports/imports.container.js';
@@ -35,17 +35,18 @@ export interface ContainerOverrides {
 }
 
 export function createContainer(overrides: ContainerOverrides = {}): ApplicationContainer {
+  const currentEnv = env ?? getEnv();
   const service = {
     name: 'groweasy-api',
     version: '1.0.0',
   };
   const health = createHealthContainer({
-    config: env,
+    config: currentEnv,
     service,
     checkDatabaseConnection: overrides.checkDatabaseConnection ?? checkDatabaseConnection,
   });
   const imports = createImportsContainer({
-    config: env,
+    config: currentEnv,
     database: db,
     logger,
   });
@@ -54,7 +55,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Application
   });
 
   return {
-    config: env,
+    config: currentEnv,
+
     logger,
     service,
     modules: {

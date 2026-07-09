@@ -93,57 +93,54 @@ const envSchema = z.object({
   LANGSMITH_API_KEY: z.string().optional(),
 });
 
-const parsedEnv = envSchema.safeParse(process.env);
-
-let values: z.infer<typeof envSchema>;
-if (!parsedEnv.success) {
-  console.warn('Environment variable validation warning:', JSON.stringify(parsedEnv.error.flatten().fieldErrors));
-  values = envSchema.parse({});
-} else {
-  values = parsedEnv.data;
+export function getEnv() {
+  const parsed = envSchema.safeParse(process.env);
+  const vals = parsed.success ? parsed.data : envSchema.parse({});
+  return {
+    nodeEnv: vals.NODE_ENV,
+    port: vals.PORT,
+    apiPrefix: vals.API_PREFIX,
+    corsOrigins: vals.CORS_ORIGINS,
+    logLevel:
+      vals.LOG_LEVEL ?? (vals.NODE_ENV === 'production' ? ('info' as const) : ('debug' as const)),
+    requestBodyLimit: vals.REQUEST_BODY_LIMIT,
+    rateLimitWindowMs: vals.RATE_LIMIT_WINDOW_MS,
+    rateLimitMaxRequests: vals.RATE_LIMIT_MAX_REQUESTS,
+    shutdownTimeoutMs: vals.SHUTDOWN_TIMEOUT_MS,
+    databaseUrl: vals.DATABASE_URL,
+    dbSsl: vals.DB_SSL,
+    uploadMaxFileSizeBytes: vals.UPLOAD_MAX_FILE_SIZE_BYTES,
+    importMaxRows: vals.IMPORT_MAX_ROWS,
+    csvPreviewRowLimit: vals.CSV_PREVIEW_ROW_LIMIT,
+    csvMaxRecordSizeBytes: vals.CSV_MAX_RECORD_SIZE_BYTES,
+    defaultPhoneRegion: vals.DEFAULT_PHONE_REGION,
+    aiProvider: vals.AI_PROVIDER,
+    openAiApiKey: vals.OPENAI_API_KEY,
+    aiModel: vals.AI_MODEL,
+    geminiApiKey: vals.GEMINI_API_KEY,
+    geminiModel: vals.GEMINI_MODEL,
+    aiTemperature: vals.AI_TEMPERATURE,
+    aiBatchSize: clamp(vals.AI_BATCH_SIZE, 20, 50),
+    aiBatchConcurrency: vals.AI_BATCH_CONCURRENCY,
+    aiMaxConcurrentImports: vals.AI_MAX_CONCURRENT_IMPORTS,
+    aiMaxCellChars: vals.AI_MAX_CELL_CHARS,
+    aiMaxRowChars: vals.AI_MAX_ROW_CHARS,
+    aiMaxBatchInputTokens: vals.AI_MAX_BATCH_INPUT_TOKENS,
+    aiProviderTimeoutMs: vals.AI_PROVIDER_TIMEOUT_MS,
+    aiDebugStoreRawPrompts:
+      vals.NODE_ENV === 'production' ? false : vals.AI_DEBUG_STORE_RAW_PROMPTS,
+    aiMaxRetries: clamp(vals.AI_MAX_RETRIES, 0, 5),
+    aiRetryBaseDelayMs: vals.AI_RETRY_BASE_DELAY_MS,
+    aiCircuitBreakerFailureThreshold: vals.AI_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+    aiCircuitBreakerCooldownMs: vals.AI_CIRCUIT_BREAKER_COOLDOWN_MS,
+    langSmithTracing: vals.LANGSMITH_TRACING,
+    langSmithApiKey: vals.LANGSMITH_API_KEY,
+  } as const;
 }
 
+export const env = getEnv();
 
-export const env = {
-  nodeEnv: values.NODE_ENV,
-  port: values.PORT,
-  apiPrefix: values.API_PREFIX,
-  corsOrigins: values.CORS_ORIGINS,
-  logLevel:
-    values.LOG_LEVEL ?? (values.NODE_ENV === 'production' ? ('info' as const) : ('debug' as const)),
-  requestBodyLimit: values.REQUEST_BODY_LIMIT,
-  rateLimitWindowMs: values.RATE_LIMIT_WINDOW_MS,
-  rateLimitMaxRequests: values.RATE_LIMIT_MAX_REQUESTS,
-  shutdownTimeoutMs: values.SHUTDOWN_TIMEOUT_MS,
-  databaseUrl: values.DATABASE_URL,
-  dbSsl: values.DB_SSL,
-  uploadMaxFileSizeBytes: values.UPLOAD_MAX_FILE_SIZE_BYTES,
-  importMaxRows: values.IMPORT_MAX_ROWS,
-  csvPreviewRowLimit: values.CSV_PREVIEW_ROW_LIMIT,
-  csvMaxRecordSizeBytes: values.CSV_MAX_RECORD_SIZE_BYTES,
-  defaultPhoneRegion: values.DEFAULT_PHONE_REGION,
-  aiProvider: values.AI_PROVIDER,
-  openAiApiKey: values.OPENAI_API_KEY,
-  aiModel: values.AI_MODEL,
-  geminiApiKey: values.GEMINI_API_KEY,
-  geminiModel: values.GEMINI_MODEL,
-  aiTemperature: values.AI_TEMPERATURE,
-  aiBatchSize: clamp(values.AI_BATCH_SIZE, 20, 50),
-  aiBatchConcurrency: values.AI_BATCH_CONCURRENCY,
-  aiMaxConcurrentImports: values.AI_MAX_CONCURRENT_IMPORTS,
-  aiMaxCellChars: values.AI_MAX_CELL_CHARS,
-  aiMaxRowChars: values.AI_MAX_ROW_CHARS,
-  aiMaxBatchInputTokens: values.AI_MAX_BATCH_INPUT_TOKENS,
-  aiProviderTimeoutMs: values.AI_PROVIDER_TIMEOUT_MS,
-  aiDebugStoreRawPrompts:
-    values.NODE_ENV === 'production' ? false : values.AI_DEBUG_STORE_RAW_PROMPTS,
-  aiMaxRetries: clamp(values.AI_MAX_RETRIES, 0, 5),
-  aiRetryBaseDelayMs: values.AI_RETRY_BASE_DELAY_MS,
-  aiCircuitBreakerFailureThreshold: values.AI_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
-  aiCircuitBreakerCooldownMs: values.AI_CIRCUIT_BREAKER_COOLDOWN_MS,
-  langSmithTracing: values.LANGSMITH_TRACING,
-  langSmithApiKey: values.LANGSMITH_API_KEY,
-} as const;
+
 
 export type Env = typeof env;
 

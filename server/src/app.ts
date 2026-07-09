@@ -33,10 +33,14 @@ import { requestIdMiddleware } from './shared/presentation/middlewares/request-i
 import { createRequestLoggerMiddleware } from './shared/presentation/middlewares/request-logger.middleware.js';
 import { sendSuccess } from './shared/presentation/responses/response-sender.js';
 
+import { getEnv } from './config/env.js';
 export function createApp(container: ApplicationContainer = createContainer()): express.Express {
   const app = express();
+  const config = container?.config ?? getEnv();
 
+  app.set('trust proxy', 1);
   app.disable('x-powered-by');
+
 
   app.use(requestIdMiddleware);
   app.use(createRequestLoggerMiddleware(container.logger));
@@ -44,8 +48,8 @@ export function createApp(container: ApplicationContainer = createContainer()): 
   app.use(cors(createCorsOptions()));
   app.use(compression());
   app.use(createRateLimitMiddleware());
-  app.use(express.json({ limit: container.config.requestBodyLimit }));
-  app.use(express.urlencoded({ extended: true, limit: container.config.requestBodyLimit }));
+  app.use(express.json({ limit: config.requestBodyLimit ?? '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: config.requestBodyLimit ?? '1mb' }));
 
   app.get('/', (req, res) => {
     sendSuccess(
@@ -54,15 +58,16 @@ export function createApp(container: ApplicationContainer = createContainer()): 
       {
         service: container.service.name,
         version: container.service.version,
-        environment: container.config.nodeEnv,
-        apiPrefix: container.config.apiPrefix,
+        environment: config.nodeEnv,
+        apiPrefix: config.apiPrefix,
       },
       'GrowEasy API foundation is running.'
     );
   });
 
   app.use('/health', container.modules.health.router);
-  app.use(container.config.apiPrefix, createApiRouter(container));
+  app.use(config.apiPrefix ?? '/api/v1', createApiRouter(container));
+
 
   app.use(notFoundMiddleware);
   app.use(createErrorHandlerMiddleware(container.logger));
