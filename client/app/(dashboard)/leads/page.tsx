@@ -14,6 +14,11 @@ import {
   PlusCircle,
   Search,
   Trash2,
+  Mail,
+  Phone,
+  Building2,
+  MapPin,
+  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageLayout } from "@/components/layout/page-layout";
@@ -35,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { GrowEasyCrmRecord } from "@/lib/imports/contracts";
 import {
   deleteLead,
@@ -168,61 +174,69 @@ export default function LeadsPage() {
         <div className="p-3 lg:p-3.5 rounded-2xl lg:rounded-3xl border border-border/70 dark:border-white/[0.08] bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-lg shadow-black/5 dark:shadow-black/20 transition-all">
           <form
             onSubmit={handleSearchSubmit}
-            className="flex flex-wrap items-center gap-2.5"
+            className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5"
           >
-            <div className="relative flex-1 min-w-[240px]">
+            <div className="relative w-full sm:flex-1 sm:min-w-[240px]">
               <Search className="absolute top-1/2 left-3.5 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search leads by name, email, phone, company..."
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                className="h-10 pl-10 pr-4 rounded-xl border-border/60 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.07] focus-visible:bg-background text-xs font-medium transition-all shadow-2xs"
+                className="h-10 pl-10 pr-4 rounded-xl border-border/60 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.07] focus-visible:bg-background text-xs font-medium transition-all shadow-2xs w-full"
               />
             </div>
 
-            <FilterSelect
-              label="CRM Status"
-              value={status}
-              options={STATUS_LABELS}
-              allLabel="All Statuses"
-              onChange={(nextValue) => {
-                setStatus(nextValue);
-                setPage(1);
-              }}
-            />
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <FilterSelect
+                label="CRM Status"
+                value={status}
+                options={STATUS_LABELS}
+                allLabel="All Statuses"
+                onChange={(nextValue) => {
+                  setStatus(nextValue);
+                  setPage(1);
+                }}
+              />
 
-            <FilterSelect
-              label="Lead Source"
-              value={source}
-              options={SOURCE_LABELS}
-              allLabel="All Sources"
-              onChange={(nextValue) => {
-                setSource(nextValue);
-                setPage(1);
-              }}
-            />
+              <FilterSelect
+                label="Lead Source"
+                value={source}
+                options={SOURCE_LABELS}
+                allLabel="All Sources"
+                onChange={(nextValue) => {
+                  setSource(nextValue);
+                  setPage(1);
+                }}
+              />
+            </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:w-auto sm:items-center">
               <Button
                 type="submit"
                 size="sm"
-                className="h-10 rounded-xl px-4 bg-[#0D652D] text-white hover:bg-[#0A4D22] font-medium text-xs shadow-sm transition-all cursor-pointer"
+                className="h-10 rounded-xl px-3 bg-[#0D652D] text-white hover:bg-[#0A4D22] font-semibold text-xs shadow-sm transition-all cursor-pointer w-full sm:w-auto flex items-center justify-center"
               >
-                <Filter className="mr-1.5 h-3.5 w-3.5" />
+                <Filter className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                 Filter
               </Button>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={handleResetFilters}
-                className="h-10 rounded-xl px-3.5 text-xs text-muted-foreground hover:text-foreground font-medium cursor-pointer"
+                className="h-10 rounded-xl px-3 border-border/60 bg-foreground/[0.02] dark:bg-white/[0.04] hover:bg-foreground/[0.06] text-xs text-muted-foreground hover:text-foreground font-semibold cursor-pointer w-full sm:w-auto flex items-center justify-center"
               >
                 Clear
               </Button>
-              <Button type="button" size="sm" variant="outline" className="h-10 rounded-xl px-4 border-border/70 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.08] text-foreground font-medium text-xs shadow-2xs cursor-pointer" asChild>
-                <Link href="/import" className="gap-1.5">
-                  <PlusCircle className="h-3.5 w-3.5 text-emerald-500" />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-10 rounded-xl px-3 border-border/70 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.08] text-foreground font-semibold text-xs shadow-2xs cursor-pointer w-full sm:w-auto"
+                asChild
+              >
+                <Link href="/import" className="gap-1.5 flex items-center justify-center">
+                  <PlusCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                   Import
                 </Link>
               </Button>
@@ -233,10 +247,7 @@ export default function LeadsPage() {
         <Card className="overflow-hidden shadow-sm">
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center space-y-3 py-16 text-muted-foreground">
-                <LoaderCircle className="h-8 w-8 animate-spin text-[#0D652D]" />
-                <p className="text-sm">Loading leads...</p>
-              </div>
+              <LeadsTableSkeleton rows={6} />
             ) : leads.length === 0 ? (
               <EmptyLeadsState />
             ) : (
@@ -247,7 +258,7 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full border-collapse text-left text-sm">
                     <thead className="bg-gradient-to-r from-foreground/[0.05] via-foreground/[0.08] to-foreground/[0.05] dark:from-white/[0.06] dark:via-white/[0.09] dark:to-white/[0.06] border-b border-border/80 dark:border-white/[0.12] backdrop-blur-2xl">
                       <tr>
@@ -386,7 +397,13 @@ export default function LeadsPage() {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-border/50 bg-foreground/[0.02] dark:bg-white/[0.02] px-5 py-3.5">
+                <MobileLeadsCardList
+                  leads={leads}
+                  onEdit={openEditDialog}
+                  onDelete={openDeleteDialog}
+                />
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/50 bg-foreground/[0.02] dark:bg-white/[0.02] px-4 sm:px-5 py-3.5">
                   <div className="text-xs font-medium text-muted-foreground">
                     {(page - 1) * limit + 1}-{Math.min(page * limit, totalLeads)} of{" "}
                     <span className="text-foreground font-semibold">{totalLeads}</span> leads
@@ -560,7 +577,7 @@ function FilterSelect({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center justify-between gap-2 h-10 min-w-[155px] rounded-xl border border-border/60 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.07] px-3.5 text-xs font-medium text-foreground shadow-2xs transition-all focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:outline-none cursor-pointer select-none"
+          className="inline-flex items-center justify-between gap-2 h-10 w-full sm:w-auto sm:min-w-[155px] rounded-xl border border-border/60 bg-foreground/[0.04] dark:bg-white/[0.06] hover:bg-foreground/[0.07] px-3.5 text-xs font-medium text-foreground shadow-2xs transition-all focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:outline-none cursor-pointer select-none"
         >
           <span className="truncate">{currentLabel}</span>
           <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -591,6 +608,126 @@ function FilterSelect({
   );
 }
 
+function LeadsTableSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div>
+      {/* Desktop Table Skeleton */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="bg-gradient-to-r from-foreground/[0.05] via-foreground/[0.08] to-foreground/[0.05] dark:from-white/[0.06] dark:via-white/[0.09] dark:to-white/[0.06] border-b border-border/80 dark:border-white/[0.12] backdrop-blur-2xl">
+            <tr>
+              <LeadTableHead>Lead Profile</LeadTableHead>
+              <LeadTableHead>Contact Info</LeadTableHead>
+              <LeadTableHead>Company & Location</LeadTableHead>
+              <LeadTableHead>CRM Status</LeadTableHead>
+              <LeadTableHead>Source / Owner</LeadTableHead>
+              <LeadTableHead>Date Added</LeadTableHead>
+              <LeadTableHead>Notes</LeadTableHead>
+              <LeadTableHead align="right">Actions</LeadTableHead>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/40">
+            {Array.from({ length: rows }).map((_, i) => (
+              <tr
+                key={i}
+                className="transition-colors hover:bg-foreground/[0.02] dark:hover:bg-white/[0.02]"
+              >
+                <LeadTableCell>
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20" />
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                      <Skeleton className="h-4 w-28 rounded" />
+                      <Skeleton className="h-3 w-20 rounded" />
+                    </div>
+                  </div>
+                </LeadTableCell>
+                <LeadTableCell>
+                  <div className="flex flex-col space-y-1.5">
+                    <Skeleton className="h-3.5 w-32 rounded" />
+                    <Skeleton className="h-3 w-24 rounded" />
+                  </div>
+                </LeadTableCell>
+                <LeadTableCell>
+                  <div className="flex flex-col space-y-1.5">
+                    <Skeleton className="h-3.5 w-28 rounded" />
+                    <Skeleton className="h-3 w-20 rounded" />
+                  </div>
+                </LeadTableCell>
+                <LeadTableCell>
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </LeadTableCell>
+                <LeadTableCell>
+                  <Skeleton className="h-5 w-16 rounded-md" />
+                </LeadTableCell>
+                <LeadTableCell>
+                  <Skeleton className="h-3.5 w-20 rounded" />
+                </LeadTableCell>
+                <LeadTableCell>
+                  <Skeleton className="h-3.5 w-36 rounded" />
+                </LeadTableCell>
+                <LeadTableCell align="right">
+                  <div className="flex justify-end gap-1.5">
+                    <Skeleton className="h-8 w-8 rounded-xl" />
+                    <Skeleton className="h-8 w-8 rounded-xl" />
+                  </div>
+                </LeadTableCell>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile Card List Skeleton */}
+      <div className="md:hidden p-3 sm:p-4 space-y-3.5">
+        {Array.from({ length: Math.min(rows, 4) }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-2xl border border-border/70 dark:border-white/[0.08] bg-card/90 dark:bg-card/75 p-4 shadow-sm space-y-3.5"
+          >
+            {/* Top Header Skeleton */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Skeleton className="w-10 h-10 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/20 shrink-0" />
+                <div className="space-y-1.5 min-w-0">
+                  <Skeleton className="h-4 w-32 rounded" />
+                  <Skeleton className="h-3 w-20 rounded" />
+                </div>
+              </div>
+              <Skeleton className="h-6 w-24 rounded-full shrink-0" />
+            </div>
+
+            {/* Middle Section Skeleton */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 rounded-xl bg-muted/40 dark:bg-white/[0.02] p-3 border border-border/50">
+              <div className="space-y-1.5">
+                <Skeleton className="h-2.5 w-14 rounded" />
+                <Skeleton className="h-3.5 w-36 rounded" />
+                <Skeleton className="h-3 w-24 rounded" />
+              </div>
+              <div className="space-y-1.5 border-t sm:border-t-0 sm:border-l border-border/50 pt-2 sm:pt-0 sm:pl-3">
+                <Skeleton className="h-2.5 w-20 rounded" />
+                <Skeleton className="h-3.5 w-28 rounded" />
+                <Skeleton className="h-3 w-24 rounded" />
+              </div>
+            </div>
+
+            {/* Bottom Footer Skeleton */}
+            <div className="flex items-center justify-between pt-1 border-t border-border/40">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-14 rounded-md" />
+                <Skeleton className="h-3 w-20 rounded" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="h-8 w-16 rounded-lg" />
+                <Skeleton className="h-8 w-16 rounded-lg" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function EmptyLeadsState() {
   return (
     <div className="space-y-3 py-16 text-center text-muted-foreground">
@@ -599,6 +736,159 @@ function EmptyLeadsState() {
       <Button size="sm" className="mt-2 bg-[#0D652D] text-white hover:bg-[#0A4D22]" asChild>
         <Link href="/import">Go to Importer</Link>
       </Button>
+    </div>
+  );
+}
+
+function MobileLeadsCardList({
+  leads,
+  onEdit,
+  onDelete,
+}: {
+  leads: LeadWithId[];
+  onEdit: (lead: LeadWithId) => void;
+  onDelete: (lead: LeadWithId) => void;
+}) {
+  return (
+    <div className="md:hidden p-3 sm:p-4 space-y-3.5">
+      {leads.map((lead) => {
+        const hasEmail = Boolean(lead.email && lead.email !== "-");
+        const phoneText = formatPhone(lead);
+        const hasPhone = Boolean(phoneText && phoneText !== "-");
+        const hasCompany = Boolean(lead.company && lead.company !== "-");
+        const locationText = formatLocation(lead);
+        const hasLocation = Boolean(locationText && locationText !== "-");
+
+        return (
+          <div
+            key={lead.id}
+            className="rounded-2xl border border-border/70 dark:border-white/[0.08] bg-card/90 dark:bg-card/75 p-4 shadow-sm hover:border-emerald-500/40 transition-all space-y-3.5"
+          >
+            {/* Top Header: Avatar + Lead Name + CRM Status Badge */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-semibold text-sm shrink-0 shadow-2xs">
+                  {getLeadInitials(lead.name)}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm text-foreground truncate">
+                    {formatOptional(lead.name)}
+                  </p>
+                  {lead.description && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {lead.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="shrink-0">
+                {lead.crm_status ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    {STATUS_LABELS[lead.crm_status] || lead.crm_status}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-foreground/5 dark:bg-white/5 text-muted-foreground border border-border/60">
+                    New Lead
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Middle Section: Contact & Company Info Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 rounded-xl bg-muted/40 dark:bg-white/[0.02] p-3 border border-border/50 text-xs">
+              {/* Contact Column */}
+              <div className="space-y-1 min-w-0">
+                <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest block">
+                  Contact
+                </span>
+                {hasEmail || hasPhone ? (
+                  <div className="space-y-1">
+                    {hasEmail && (
+                      <div className="flex items-center gap-1.5 text-foreground">
+                        <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate font-medium">{lead.email}</span>
+                      </div>
+                    )}
+                    {hasPhone && (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate font-mono text-[11px]">{phoneText}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground italic text-[11px]">
+                    No contact details provided
+                  </p>
+                )}
+              </div>
+
+              {/* Company & Location Column */}
+              <div className="space-y-1 min-w-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-2 sm:pt-0 sm:pl-3">
+                <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-widest block">
+                  Company & Location
+                </span>
+                {hasCompany || hasLocation ? (
+                  <div className="space-y-1">
+                    {hasCompany && (
+                      <div className="flex items-center gap-1.5 text-foreground">
+                        <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate font-medium">{lead.company}</span>
+                      </div>
+                    )}
+                    {hasLocation && (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate text-[11px]">{locationText}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground italic text-[11px]">
+                    Independent / No company info
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Footer Section: Source & Date + Actions */}
+            <div className="flex items-center justify-between pt-1 border-t border-border/40">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="px-2 py-0.5 rounded-md bg-foreground/[0.06] dark:bg-white/[0.08] text-[10px] font-semibold text-foreground uppercase tracking-wide shrink-0 border border-border/50">
+                  {SOURCE_LABELS[lead.data_source || ""] || lead.data_source || "WEB"}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate">
+                  <Calendar className="w-3 h-3 shrink-0" />
+                  {formatDateValue(lead.created_at)}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onEdit(lead)}
+                  className="h-8 px-3 rounded-lg text-xs font-medium border-border/70 bg-background/50 hover:bg-muted"
+                >
+                  <Edit2 className="h-3.5 w-3.5 mr-1.5" />
+                  Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onDelete(lead)}
+                  className="h-8 px-3 rounded-lg text-xs font-medium border-border/70 bg-background/50 text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

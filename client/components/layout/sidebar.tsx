@@ -45,7 +45,7 @@ const controlCenterItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isCollapsed, toggleSidebar } = useSidebar();
+  const { isCollapsed, toggleSidebar, isMobileOpen, setIsMobileOpen, toggleMobileSidebar } = useSidebar();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const isActive = (href: string) => {
@@ -55,12 +55,13 @@ export function Sidebar() {
   };
 
   return (
-    <aside
-      className={cn(
-        "relative flex flex-col h-full rounded-2xl lg:rounded-3xl border border-border/70 dark:border-white/[0.08] bg-card/85 dark:bg-card/75 backdrop-blur-2xl text-foreground shadow-lg shadow-black/5 dark:shadow-black/20 transition-all duration-300 ease-in-out select-none z-30 overflow-hidden shrink-0",
-        isCollapsed ? "w-20" : "w-64"
-      )}
-    >
+    <>
+      <aside
+        className={cn(
+          "hidden md:flex relative flex-col h-full rounded-2xl lg:rounded-3xl border border-border/70 dark:border-white/[0.08] bg-card/85 dark:bg-card/75 backdrop-blur-2xl text-foreground shadow-lg shadow-black/5 dark:shadow-black/20 transition-all duration-300 ease-in-out select-none z-30 overflow-hidden shrink-0",
+          isCollapsed ? "w-20" : "w-64"
+        )}
+      >
       {/* Brand Header */}
       <div
         className={cn(
@@ -294,13 +295,137 @@ export function Sidebar() {
             )}
             {!isCollapsed && <span>Collapse Sidebar</span>}
           </div>
-          {!isCollapsed && (
-            <kbd className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/80">
-              Ctrl+B
-            </kbd>
-          )}
-        </button>
-      </div>
-    </aside>
+            {!isCollapsed && (
+              <kbd className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/80">
+                Ctrl+B
+              </kbd>
+            )}
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Slide-Over Drawer Sheet */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={toggleMobileSidebar}
+          />
+          <aside className="relative flex flex-col w-[280px] max-w-[85vw] h-full bg-card border-r border-border/70 shadow-2xl z-50 overflow-hidden">
+            {/* Brand Header */}
+            <div className="flex items-center justify-between h-[72px] border-b border-border/50 pl-5 pr-4">
+              <Link
+                href="/import"
+                onClick={() => setIsMobileOpen(false)}
+                className="flex items-center gap-3 group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0D652D] via-[#13883E] to-[#15803d] flex items-center justify-center shadow-md shadow-emerald-950/15 text-white">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold tracking-tight text-foreground">
+                    GrowEasy
+                  </span>
+                  <span className="text-[10px] font-semibold tracking-widest px-1.5 py-0.5 rounded-full bg-[#E6F4EA] text-[#0D652D] dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-500/20 uppercase">
+                    CRM
+                  </span>
+                </div>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setIsMobileOpen(false)}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                aria-label="Close menu"
+              >
+                <PanelLeftClose className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Navigation Links (Mobile) */}
+            <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+              <div>
+                <div className="flex items-center justify-between px-3 mb-2">
+                  <span className="text-[11px] font-bold text-muted-foreground/80 uppercase tracking-widest">
+                    Main
+                  </span>
+                </div>
+                <nav className="space-y-1">
+                  {mainNavItems.map((item) => {
+                    const active = isActive(item.href);
+                    return (
+                      <Link
+                        key={item.title}
+                        href={item.href}
+                        onClick={() => setIsMobileOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                          active
+                            ? "bg-foreground/7 dark:bg-white/[0.08] text-foreground font-medium"
+                            : "text-muted-foreground hover:bg-foreground/4 hover:text-foreground"
+                        )}
+                      >
+                        <item.icon
+                          className={cn(
+                            "w-4 h-4 shrink-0",
+                            active ? "text-foreground" : "text-muted-foreground"
+                          )}
+                        />
+                        <span className="truncate">{item.title}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between px-3 mb-2">
+                  <span className="text-[11px] font-bold text-muted-foreground/80 uppercase tracking-widest">
+                    Control Center
+                  </span>
+                </div>
+                <nav className="space-y-1">
+                  {controlCenterItems.map((item) => {
+                    const active = isActive(item.href);
+                    return (
+                      <Link
+                        key={item.title}
+                        href={item.href}
+                        onClick={() => setIsMobileOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                          active
+                            ? "bg-foreground/7 dark:bg-white/[0.08] text-foreground font-medium"
+                            : "text-muted-foreground hover:bg-foreground/4 hover:text-foreground"
+                        )}
+                      >
+                        <item.icon
+                          className={cn(
+                            "w-4 h-4 shrink-0",
+                            active ? "text-foreground" : "text-muted-foreground"
+                          )}
+                        />
+                        <span className="truncate">{item.title}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

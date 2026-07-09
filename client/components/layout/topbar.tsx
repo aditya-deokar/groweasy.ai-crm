@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Search, RefreshCcw, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Search, RefreshCcw, PanelLeftClose, PanelLeftOpen, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -14,18 +14,31 @@ interface TopbarProps {
 }
 
 export function Topbar({ title, subtitle, showSearch = false }: TopbarProps) {
-  const { isCollapsed, toggleSidebar } = useSidebar();
+  const { isCollapsed, toggleSidebar, toggleMobileSidebar } = useSidebar();
 
   return (
-    <header className="h-[72px] rounded-2xl lg:rounded-3xl border border-border/70 dark:border-white/[0.08] flex items-center justify-between px-6 bg-card/85 dark:bg-card/75 backdrop-blur-2xl shrink-0 shadow-lg shadow-black/5 dark:shadow-black/20 transition-all">
-      {/* Left side: Apple iOS/macOS Functional Toggle + Premium Stacked Title & Subtitle */}
-      <div className="flex items-center gap-4 min-w-0">
+    <header className="h-[72px] rounded-2xl lg:rounded-3xl border border-border/70 dark:border-white/[0.08] flex items-center justify-between px-3.5 sm:px-6 bg-card/85 dark:bg-card/75 backdrop-blur-2xl shrink-0 shadow-lg shadow-black/5 dark:shadow-black/20 transition-all">
+      {/* Left side: Mobile Hamburger / Desktop Toggle + Responsive Title & Subtitle */}
+      <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+        {/* Mobile Menu Button */}
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={toggleMobileSidebar}
+          className="flex md:hidden h-9 w-9 rounded-xl border-border/70 bg-background/60 hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 cursor-pointer transition-all shadow-2xs"
+          title="Open Menu"
+        >
+          <Menu className="w-4 h-4" />
+        </Button>
+
+        {/* Desktop Sidebar Toggle Button */}
         <Button
           type="button"
           variant="outline"
           size="icon"
           onClick={toggleSidebar}
-          className="h-9 w-9 rounded-xl border-border/70 bg-background/60 hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 cursor-pointer transition-all shadow-2xs"
+          className="hidden md:flex h-9 w-9 rounded-xl border-border/70 bg-background/60 hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 cursor-pointer transition-all shadow-2xs"
           title={isCollapsed ? "Expand Sidebar (Ctrl+B)" : "Collapse Sidebar (Ctrl+B)"}
         >
           {isCollapsed ? (
@@ -38,11 +51,11 @@ export function Topbar({ title, subtitle, showSearch = false }: TopbarProps) {
         <div className="h-7 w-px bg-border/60 shrink-0" />
 
         <div className="flex flex-col justify-center min-w-0">
-          <h1 className="text-xl lg:text-2xl font-bold tracking-tight text-foreground truncate leading-none">
+          <h1 className="text-base sm:text-xl lg:text-2xl font-bold tracking-tight text-foreground truncate leading-none">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-xs lg:text-sm text-muted-foreground font-medium truncate mt-1.5 leading-none">
+            <p className="hidden sm:block text-xs lg:text-sm text-muted-foreground font-medium truncate mt-1.5 leading-none">
               {subtitle}
             </p>
           )}

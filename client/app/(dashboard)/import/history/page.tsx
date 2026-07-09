@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ImportJobSummary } from "@/lib/imports/contracts";
@@ -48,7 +49,7 @@ export default function ImportHistoryPage() {
           <CardDescription>A complete log of all file uploads and processing status.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="rounded-xl border border-border/70 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -62,11 +63,31 @@ export default function ImportHistoryPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
-                      <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-                    </TableCell>
-                  </TableRow>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i} className="hover:bg-transparent">
+                      <TableCell>
+                        <div className="space-y-1.5">
+                          <Skeleton className="h-4 w-36 rounded" />
+                          <Skeleton className="h-3 w-20 rounded" />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-5 w-20 rounded-full" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="ml-auto h-4 w-12 rounded" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="ml-auto h-4 w-12 rounded" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="ml-auto h-4 w-12 rounded" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="ml-auto h-7 w-7 rounded-lg" />
+                      </TableCell>
+                    </TableRow>
+                  ))
                 ) : isError ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center text-red-500">

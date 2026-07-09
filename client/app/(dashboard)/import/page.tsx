@@ -34,6 +34,7 @@ import { UploadZone } from "@/components/import/upload-zone"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useImportSession } from "@/hooks/use-import-session"
 import { SourceCard, type LeadSource } from "@/components/import/source-card"
@@ -711,16 +712,7 @@ function ImportPageContent() {
                   </div>
                 )}
 
-                {session.isResultLoading && (
-                  <Card>
-                    <CardContent className="flex items-center gap-3 py-8 text-muted-foreground">
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">
-                        Fetching final import results...
-                      </span>
-                    </CardContent>
-                  </Card>
-                )}
+                {session.isResultLoading && <ImportResultsSkeleton />}
 
                 {session.result && (
                   <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -809,13 +801,107 @@ function ImportPageContent() {
   )
 }
 
+function ImportResultsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="overflow-hidden">
+            <CardContent className="p-5 space-y-2.5">
+              <Skeleton className="h-4 w-28 rounded" />
+              <Skeleton className="h-7 w-20 rounded-md" />
+              <Skeleton className="h-3 w-36 rounded" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="flex gap-2 border-b pb-2">
+        <Skeleton className="h-8 w-28 rounded-lg" />
+        <Skeleton className="h-8 w-28 rounded-lg" />
+      </div>
+
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          {/* Desktop Table Skeleton */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-muted/40 border-b">
+                <tr>
+                  <th className="p-4"><Skeleton className="h-4 w-20" /></th>
+                  <th className="p-4"><Skeleton className="h-4 w-32" /></th>
+                  <th className="p-4"><Skeleton className="h-4 w-24" /></th>
+                  <th className="p-4"><Skeleton className="h-4 w-28" /></th>
+                  <th className="p-4"><Skeleton className="h-4 w-20" /></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={idx}>
+                    <td className="p-4"><Skeleton className="h-4 w-24" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-36" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-28" /></td>
+                    <td className="p-4"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-20" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card Skeleton */}
+          <div className="md:hidden p-4 space-y-3">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="rounded-xl border border-border/60 bg-card/80 p-3.5 space-y-2.5"
+              >
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-28 rounded" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+                <Skeleton className="h-3.5 w-44 rounded" />
+                <div className="flex items-center justify-between pt-1">
+                  <Skeleton className="h-3 w-24 rounded" />
+                  <Skeleton className="h-3 w-16 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 function ImportPageFallback() {
   return (
-    <div className="w-full">
-      <Card className="mx-auto mt-12 max-w-2xl">
-        <CardContent className="flex items-center gap-3 py-12 text-muted-foreground">
-          <LoaderCircle className="h-5 w-5 animate-spin" />
-          Preparing import dashboard...
+    <div className="space-y-8 pb-12">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-8 w-64 rounded-lg" />
+        <Skeleton className="h-4 w-96 rounded" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="p-5 space-y-3">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-xl" />
+              <div className="space-y-1.5 flex-1">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="overflow-hidden border-dashed">
+        <CardContent className="flex flex-col items-center justify-center p-12 space-y-4">
+          <Skeleton className="h-14 w-14 rounded-full" />
+          <Skeleton className="h-5 w-48 rounded" />
+          <Skeleton className="h-4 w-72 rounded" />
+          <Skeleton className="h-9 w-32 rounded-lg" />
         </CardContent>
       </Card>
     </div>
