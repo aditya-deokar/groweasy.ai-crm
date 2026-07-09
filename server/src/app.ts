@@ -1,5 +1,5 @@
-import compression from 'compression';
-import cors from 'cors';
+import compressionLib from 'compression';
+import corsLib from 'cors';
 import express from 'express';
 import helmetLib from 'helmet';
 
@@ -7,6 +7,18 @@ const helmet = (
   typeof helmetLib === 'function'
     ? helmetLib
     : (helmetLib as unknown as { default: (options?: unknown) => express.RequestHandler }).default
+) as (options?: unknown) => express.RequestHandler;
+
+const cors = (
+  typeof corsLib === 'function'
+    ? corsLib
+    : (corsLib as unknown as { default: (options?: unknown) => express.RequestHandler }).default || corsLib
+) as (options?: unknown) => express.RequestHandler;
+
+const compression = (
+  typeof compressionLib === 'function'
+    ? compressionLib
+    : (compressionLib as unknown as { default: (options?: unknown) => express.RequestHandler }).default || compressionLib
 ) as (options?: unknown) => express.RequestHandler;
 
 import { createCorsOptions } from './config/cors.js';

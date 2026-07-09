@@ -1,15 +1,22 @@
-import rateLimit from 'express-rate-limit';
+import type { Request, RequestHandler, Response } from 'express';
+import rateLimitLib from 'express-rate-limit';
 import { StatusCodes } from 'http-status-codes';
-import { env } from './env.js';
 import { sendError } from '../shared/presentation/responses/response-sender.js';
+import { env } from './env.js';
 
-export function createRateLimitMiddleware() {
+const rateLimit = (
+  typeof rateLimitLib === 'function'
+    ? rateLimitLib
+    : (rateLimitLib as unknown as { default: (options: unknown) => RequestHandler }).default || rateLimitLib
+) as (options: unknown) => RequestHandler;
+
+export function createRateLimitMiddleware(): RequestHandler {
   return rateLimit({
     windowMs: env.rateLimitWindowMs,
     limit: env.rateLimitMaxRequests,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    handler(req, res) {
+    handler(req: Request, res: Response) {
       sendError(
         req,
         res,
