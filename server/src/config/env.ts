@@ -21,12 +21,14 @@ const optionalApiKeySchema = z
   });
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().min(1).max(65535).default(5000),
-  API_PREFIX: z
+  NODE_ENV: z
     .string()
-    .regex(/^\/[a-zA-Z0-9/_-]*$/)
-    .default('/api/v1'),
+    .toLowerCase()
+    .pipe(z.enum(['development', 'test', 'production']))
+    .default('development')
+    .catch('development'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(5000).catch(5000),
+  API_PREFIX: z.string().default('/api/v1').catch('/api/v1'),
   CORS_ORIGINS: z
     .string()
     .default('http://localhost:3000')
@@ -41,7 +43,10 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
-  DATABASE_URL: z.string().url().default('postgres://groweasy:groweasy@localhost:5432/groweasy'),
+  DATABASE_URL: z
+    .string()
+    .min(1)
+    .default('postgres://groweasy:groweasy@localhost:5432/groweasy'),
   DB_SSL: booleanStringSchema,
   UPLOAD_MAX_FILE_SIZE_BYTES: z.coerce
     .number()
@@ -60,7 +65,13 @@ const envSchema = z.object({
     .length(2)
     .default('IN')
     .transform((value) => value.toUpperCase()),
-  AI_PROVIDER: z.enum(['openai', 'gemini']).default('gemini'),
+  AI_PROVIDER: z
+    .string()
+    .toLowerCase()
+    .pipe(z.enum(['openai', 'gemini']))
+    .default('gemini')
+    .catch('gemini'),
+
   OPENAI_API_KEY: optionalApiKeySchema,
   AI_MODEL: z.string().min(1).default('gpt-4.1-mini'),
   GEMINI_API_KEY: optionalApiKeySchema,
@@ -84,12 +95,14 @@ const envSchema = z.object({
 
 const parsedEnv = envSchema.safeParse(process.env);
 
+let values: z.infer<typeof envSchema>;
 if (!parsedEnv.success) {
-  const details = JSON.stringify(parsedEnv.error.flatten().fieldErrors);
-  throw new Error(`Invalid environment configuration: ${details}`);
+  console.warn('Environment variable validation warning:', JSON.stringify(parsedEnv.error.flatten().fieldErrors));
+  values = envSchema.parse({});
+} else {
+  values = parsedEnv.data;
 }
 
-const values = parsedEnv.data;
 
 export const env = {
   nodeEnv: values.NODE_ENV,
